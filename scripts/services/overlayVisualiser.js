@@ -752,7 +752,7 @@ export class OverlayVisualiser {
         const logicalW = parseFloat(wrap.style.width) || wrap.offsetWidth;
         const logicalH = parseFloat(wrap.style.height) || wrap.offsetHeight;
         if (!logicalW || !logicalH) return;
-        const dpr = (window.devicePixelRatio || 1) * 2;
+        const dpr = (window.devicePixelRatio || 1) * 3;
         this.mousePadCanvas.width = Math.round(logicalW * dpr);
         this.mousePadCanvas.height = Math.round(logicalH * dpr);
         this.mousePadCanvas.style.width = `${logicalW}px`;
@@ -858,13 +858,15 @@ export class OverlayVisualiser {
                 const needRebuild = !this._mousePadTextureTintCanvas ||
                     this._mousePadTextureTintCanvas._tintColor !== tintColor ||
                     this._mousePadTextureTintCanvas._srcImg !== imgSrc ||
-                    this._mousePadTextureTintCanvas._zoom !== (this.MOUSEPAD_TEXTURE_ZOOM || 1);
+                    this._mousePadTextureTintCanvas._zoom !== (this.MOUSEPAD_TEXTURE_ZOOM || 1) ||
+                    this._mousePadTextureTintCanvas._dpr !== (window.devicePixelRatio || 1) * 2;
 
                 if (needRebuild) {
                     const zoom = this.MOUSEPAD_TEXTURE_ZOOM || 1;
+                    const dpr = (window.devicePixelRatio || 1) * 2;
                     const tc = document.createElement("canvas");
-                    tc.width = Math.round(tw * zoom);
-                    tc.height = Math.round(th * zoom);
+                    tc.width = Math.round(tw * zoom * dpr);
+                    tc.height = Math.round(th * zoom * dpr);
                     const tc2d = tc.getContext("2d");
                     tc2d.drawImage(imgSrc, 0, 0, tc.width, tc.height);
                     tc2d.globalCompositeOperation = "multiply";
@@ -874,7 +876,8 @@ export class OverlayVisualiser {
                     tc2d.drawImage(imgSrc, 0, 0, tc.width, tc.height);
                     tc._tintColor = tintColor;
                     tc._srcImg = imgSrc;
-                    tc._zoom = this.MOUSEPAD_TEXTURE_ZOOM || 1;
+                    tc._zoom = zoom;
+                    tc._dpr = dpr;
                     this._mousePadTextureTintCanvas = tc;
                     this._mousePadTexturePattern = ctx.createPattern(tc, "repeat");
                 }
@@ -882,15 +885,17 @@ export class OverlayVisualiser {
                 if (this._mousePadTexturePattern) {
                     const panX = this.MOUSEPAD_MODE === "pan" ? (this.MOUSEPAD_PAN_X || 0) : 0;
                     const panY = this.MOUSEPAD_MODE === "pan" ? (this.MOUSEPAD_PAN_Y || 0) : 0;
-                    const tilW = this._mousePadTextureTintCanvas?.width || tw;
-                    const tilH = this._mousePadTextureTintCanvas?.height || th;
-                    const centerOffX = (W / 2 - tilW / 2); //center the tex
+                    const tc = this._mousePadTextureTintCanvas;
+                    const tcDpr = tc?._dpr || 1;
+                    const tilW = tc ? tc.width / tcDpr : tw;
+                    const tilH = tc ? tc.height / tcDpr : th;
+                    const centerOffX = (W / 2 - tilW / 2);
                     const centerOffY = (H / 2 - tilH / 2);
                     const rawX = centerOffX + panX;
                     const rawY = centerOffY + panY;
                     const wrapX = ((rawX % tilW) + tilW) % tilW;
                     const wrapY = ((rawY % tilH) + tilH) % tilH;
-                    const mat = new DOMMatrix().translate(wrapX, wrapY);
+                    const mat = new DOMMatrix().scale(1 / tcDpr).translate(wrapX * tcDpr, wrapY * tcDpr);
                     this._mousePadTexturePattern.setTransform(mat);
                     ctx.fillStyle = this._mousePadTexturePattern;
                     ctx.fillRect(0, 0, W, H);
