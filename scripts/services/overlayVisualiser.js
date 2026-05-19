@@ -68,8 +68,8 @@ export class OverlayVisualiser {
             } else if (keyName === "gp_lt" || keyName === "gp_rt") {
                 el.classList.add("analog-key");
             } else {
-                const scaleX = this._getPressScale(el);
                 const scaleY = this.pressScaleValue || 1.05;
+                const scaleX = this.pressScaleValue > 1 ? this._getPressScale(el) : scaleY;
                 el.style.setProperty("transform", `translateY(-2px) scale(${scaleX}, ${scaleY})`, "important");
             }
             activeSet.add(keyName);
@@ -515,8 +515,8 @@ export class OverlayVisualiser {
                 display.style.zIndex = (++this.Z_INDEX_COUNTER).toString();
                 if (this.analogMode) {
                     display.style.setProperty("transition", `color ${animDur} cubic-bezier(0.4,0,0.2,1), background ${animDur} cubic-bezier(0.4,0,0.2,1), border-color ${animDur} cubic-bezier(0.4,0,0.2,1), box-shadow ${animDur} cubic-bezier(0.4,0,0.2,1), transform 0.05s cubic-bezier(0.4,0,0.2,1)`, "important");
-                    const scaleX = this._getPressScale(display);
                     const scaleY = this.pressScaleValue || 1.05;
+                    const scaleX = this.pressScaleValue > 1 ? this._getPressScale(display) : scaleY;
                     display.style.setProperty("transform", `scale(${scaleX}, ${scaleY})`, "important");
                 }
             }
@@ -614,8 +614,8 @@ export class OverlayVisualiser {
             if (effectiveDepth > 0) el.classList.add("analog-key");
             else if (!el.classList.contains("active")) el.classList.remove("analog-key");
 
-            const maxScaleX = this._getPressScale(el);
             const maxScaleY = this.pressScaleValue || 1.05;
+            const maxScaleX = this.pressScaleValue > 1 ? this._getPressScale(el) : maxScaleY;
             const scaleX = 1 + (maxScaleX - 1) * effectiveDepth;
             const scaleY = 1 + (maxScaleY - 1) * effectiveDepth;
             el.style.setProperty("transform", `scale(${scaleX}, ${scaleY})`, "important");
