@@ -300,10 +300,35 @@
                     <label class="cfg-accordion-label" for="acc-patchnotes">patch notes</label>
                     <div class="cfg-accordion-content">
                         <div class="cfg-accordion-inner patchnotes">
+                            <h1>2026-05-19</h1>
+                            <h3>ws server</h3>
+                            <ul>
+                                <li>fix linux windows not being draggable</li>
+                                <li>add analogsensepy version to tray label</li>
+                                <li>fix linux mouse movement being ignored when the whitelist has keys inside</li>
+                                <li>add default evdev key releases for linux</li>
+                                <li>on bimbows add admin warning to settings and gate autostart behind it</li>
+                                <li>adjust message priorities</li>
+                            </ul>
+                            <h3>overlay</h3>
+                            <ul>
+                                <li>add width aware press scale — keys now scale proportionally based on their width
+                                    when press scale > 1x</li>
+                                <li>fix press scale at 1.0x causing keys to shift upward on press</li>
+                                <li>fix key press scaling being asymmetric (keys appeared to grow more toward the top)
+                                </li>
+                                <li>add video texture support for mouse_pad (mp4, webm)</li>
+                                <li>add opacity setting for mouse_pad custom texture</li>
+                                <li>add miku x wallhack preset</li>
+                                <li>add new font</li>
+                                <li>lower analog threshold in configurator</li>
+                                <li>update configurator analogsense js sdk</li>
+                            </ul>
                             <h1>2026-04-21</h1>
                             <h3>ws server</h3>
                             <ul>
-                                <li>updated to the latest analogsensepy lib (1.0.5) which should offer better linux compatibility</li>
+                                <li>updated to the latest analogsensepy lib (1.0.5) which should offer better linux
+                                    compatibility</li>
                             </ul>
                             <h3>overlay</h3>
                             <ul>
@@ -313,7 +338,8 @@
                             <h3>ws server</h3>
                             <ul>
                                 <li>switched previous analog implementation with the analogsensepy lib</li>
-                                <li>fixed final released analog_depth of 0.0f not being transmitted, analog visualization should now not get stuck at low depth when releasing the key</li>
+                                <li>fixed final released analog_depth of 0.0f not being transmitted, analog
+                                    visualization should now not get stuck at low depth when releasing the key</li>
                                 <li>removed problematic build flag (--uac-admin)</li>
                             </ul>
                             <h3>overlay</h3>
@@ -779,12 +805,12 @@
                                         <option value="pan">pan</option>
                                     </select>
                                 </div>
-                                <label class="cfg-checkbox"style="margin-top:25px">
+                                <label class="cfg-checkbox" style="margin-top:25px">
                                     <input type="checkbox" class="config-input" id="mousetrailm1highlight">
                                     <span class="cfg-checkbox-box"></span>
                                     <span class="cfg-checkbox-label">highlight m1 in trail</span>
                                 </label>
-                                <label class="cfg-checkbox"style="margin-top:25px">
+                                <label class="cfg-checkbox" style="margin-top:25px">
                                     <input type="checkbox" class="config-input" id="showmousedistance">
                                     <span class="cfg-checkbox-box"></span>
                                     <span class="cfg-checkbox-label">show dist tracker</span>
@@ -830,16 +856,23 @@
                                             min="100" max="32000" step="50" value="400" disabled>
                                     </div>
                                 </div>
-                                <div style="display: flex; gap: 10px">
+                                <div style="display: flex; gap: 10px; align-items: flex-end">
                                     <div class="cfg-field" id="mousepadtexture-field" style="margin-top:8px;flex: 1">
                                         <label class="cfg-label" for="mousepadtexture">background texture url</label>
                                         <input class="cfg-input config-input" id="mousepadtexture" type="text"
                                             placeholder="https://... direct image link">
                                     </div>
-                                    <div class="cfg-field" style="margin-top:8px;flex: 1">
-                                        <label class="cfg-label" for="mousepadtexturezoom">custom texture zoom</label>
-                                        <input class="cfg-input config-input" id="mousepadtexturezoom" type="number"
-                                            min="0.1" max="10" step="0.1" value="1" style="width:80px;">
+                                    <div style="display:flex;gap:8px;margin-top:8px">
+                                        <div class="cfg-field">
+                                            <label class="cfg-label" for="mousepadtexturezoom">scale</label>
+                                            <input class="cfg-input config-input" id="mousepadtexturezoom" type="number"
+                                                min="0.1" max="10" step="0.1" value="1" style="width:70px;">
+                                        </div>
+                                        <div class="cfg-field">
+                                            <label class="cfg-label" for="mousepadtextureopacity">opacity</label>
+                                            <input class="cfg-input config-input" id="mousepadtextureopacity"
+                                                type="number" min="0" max="1" step="0.05" value="1" style="width:70px;">
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -877,7 +910,7 @@
                                 <option
                                     value="https://overlay.girlglock.com/?cfg=eNptUctu1DAU_ZdI9WpSOUnDtJG8QCCEgEoIqd1WN_ZNYo1jR350GsSCFfwB_AeLrvgavgQ76YjOiChRbs6559zjG-Be3iM3yli2rdpKbInU8AzkWPNLSlrgu96aoMUKF0gpvWqBrL1tf9RtgldSPzl03QsKNQDpjPYHKF2kV2bPygtiQcjgWEHJZNE5x0EhK4qauAlRsJJS0sM0GiE7iXF2_N7hrLBHLSKKTOp7tF7q_jB5sVjMkv4IDfofnhJ1MEo1MyWV9JAbjaQ1SiSGFWSQAkcTXIxDlre3IJVD7WQ8tvRzDPOcGYtB9oOKjz8oJhAeH3ywyAbvJ3dWvTwr38R7B9ME58qoWPeXt28fbk8Fn40ZGT1PixjMfiGFdB40T3l4cN6MH2COp_tk9gUTYRznU7hki-5OYeeb7M_P79km7u5uH-sfv7LNStoUOLHfslN9xVI7JPLrKnVJ-nutRaofs82p6uL_YerFLEXh3qome33z6n3WhCKvt6v1BBy_OG6NUmib7N3N9cdsTboOfepdU8dFNaHOr2gTqrwqG8hbdTTxevlzS5K_zvYVSQ">
                                     Wallhack × Miku OS
-                                    </option>
+                                </option>
                                 <option
                                     value="https://overlay.girlglock.com/?cfg=eNqtkk1OwzAQhe_ihVdFitu0RZa8oGuQUMUCVsiJnXSoY0f-aZsdPwdB4oQcATstAkokQCITKfEbz_v8omwdD37FjOc15qWHjSyNMpZNy2o2Fxj0Z_E0S4ULXq5ra4IWe5nwVIIcDIp6L-fzQswINsEr0AeHvEqFK6P9Xqj6C9fKbNk4x5YLCI7lGW6tdM6VXElGSIZdK6VgkyzDNW8bI6ACGclxffDvt_ZDcd_4ixr0h57IFW9AdezMAleXsJMKF0aJ1GEEr0DIxgQXsbh_estBOakdxHDguwgluAzOm-acd5GzNFvC6vZWeYrOrxAN5GQ6GyWhiMICjbTRkiLQG3Cp--M6jto4uoyj6TXaLt9tj8FjNjAcWopen18e_k4eMOsoukHH2EmfV1a-B92jwQhQr_b9R_Qb0I6i60GjBUWLbyfIh4ILs9U98elfonOKzr6Bp-wfnO9M5zyUa5o-o6NhnG5-Utjjpv3UVF-OctH_oyI0TfcGjcRVqQ">
                                     WIP gamepad (ws not required, will work with browser source only)
