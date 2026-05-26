@@ -4,6 +4,6 @@ ws-server/build/
 ws-server/dist/
 input-overlay-ws.spec
 ws-server/*.json
-ws-server/services/__pycache__
+**/__pycache__
 ws-server/logs/
 ws-server/venv/

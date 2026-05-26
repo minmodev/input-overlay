@@ -966,7 +966,6 @@ export class OverlayVisualiser {
                 const opacity = this.MOUSEPAD_TEXTURE_OPACITY ?? 1;
                 if (opacity !== 1) ctx.globalAlpha = opacity;
                 if (this._mousePadTextureAnimated) {
-                    // Tile the pre-tinted canvas directly — no createPattern needed
                     const startX = wrapX - tilW;
                     const startY = wrapY - tilH;
                     for (let y = startY; y < H; y += tilH)

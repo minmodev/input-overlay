@@ -20,18 +20,17 @@ from services.consts import (
 )
 from services.http_server import LocalHTTPServer
 from services.logger import flush_log
-from services.utils import get_resource_path, get_web_root, spawn_subprocess
+from services.utils import CONFIG_DEFAULTS, get_resource_path, get_web_root, load_or_create_config, spawn_subprocess
 
 if sys.platform == "win32":
-    from services.pynput_input import PynputInputListener
-    from services.analog import AnalogHandler, enum_analog_devices
-
     try:
-        from services.rawinput import RawMouseThread
-        RAW_MOUSE_AVAILABLE = True
+        from services.windows.input_rawinputbuffer import RawInputBuffer
+        RAW_INPUT_AVAILABLE = True
     except Exception as _e:
-        logging.getLogger(__name__).warning("raw mouse unavailable: %s", _e)
-        RAW_MOUSE_AVAILABLE = False
+        logging.getLogger(__name__).warning("raw input unavailable: %s", _e)
+        RAW_INPUT_AVAILABLE = False
+
+    from services.analog import AnalogHandler, enum_analog_devices
 
     try:
         from winotify import Notification, audio as _wn_audio
@@ -51,7 +50,7 @@ else:
         logging.getLogger(__name__).warning("notify-send not found no notis for now")
 
     try:
-        from services.evdev_input import EvdevInputListener
+        from services.linux.input_keys import EvdevInputListener
         EVDEV_AVAILABLE = True
     except ImportError:
         EVDEV_AVAILABLE = False
@@ -65,7 +64,7 @@ else:
         logging.getLogger(__name__).warning("analog module not found")
 
     try:
-        from services.rawinput_linux import RawMouseLinuxThread as RawMouseThread
+        from services.linux.input_mouse_move import RawMouseLinuxThread as RawMouseThread
         RAW_MOUSE_AVAILABLE = True
     except ImportError:
         RAW_MOUSE_AVAILABLE = False
@@ -104,10 +103,10 @@ class InputOverlayServer:
         self.config_path       = "config.json"
         self.config_last_modified: float = 0
 
-        self.raw_mouse_enabled   = False
         self.raw_mouse_min_delta = 0
         self.linux_raw_mouse_device: str = ""
         self._raw_mouse_thread   = None
+        self.send_mouse_move: bool = True
 
         self.child_processes: list = []
 
@@ -149,41 +148,26 @@ class InputOverlayServer:
 
     def load_config(self, config_path: str = "config.json") -> dict:
         config_file = Path(config_path)
-        try:
-            if config_file.exists():
-                with open(config_file, "r") as f:
-                    config = json.load(f)
-                logger.info("loaded config from %s", config_path)
-                self.config_last_modified = config_file.stat().st_mtime
-                return config
-
-            random_token = secrets.token_urlsafe(32)
-            default_config = {
-                "host":                  "localhost",
-                "port":                  4455,
-                "http_enabled":          False,
-                "http_host":             "localhost",
-                "http_port":             4456,
-                "auth_token":            random_token,
-                "analog_enabled":        False,
-                "analog_device":         None,
-                "key_whitelist":         [],
+        is_new = not config_file.exists()
+        creation_overrides = None
+        if is_new:
+            token = secrets.token_urlsafe(32)
+            creation_overrides = {
+                "auth_token":            token,
                 "balloon_notifications": False,
-                "dismissed_versions":    [],
-                "raw_mouse_enabled":     sys.platform == "win32",
-                "raw_mouse_min_delta":   0,
-                "linux_raw_mouse_device": "",
-                "cpu_affinity":          [0, 1],
             }
-            with open(config_file, "w") as f:
-                json.dump(default_config, f, indent=4)
-            logger.info("generated auth token: %s****", random_token[:4])
-            logger.info("add to overlay url: &wsauth=%s", random_token)
+        config = load_or_create_config(config_file, creation_overrides)
+        if is_new and creation_overrides:
+            t = creation_overrides["auth_token"]
+            logger.info("generated auth token: %s****", t[:4])
+            logger.info("add to overlay url: &wsauth=%s", t)
+        else:
+            logger.info("loaded config from %s", config_path)
+        try:
             self.config_last_modified = config_file.stat().st_mtime
-            return default_config
         except Exception:
-            logger.exception("error loading config")
-            return {}
+            self.config_last_modified = 0
+        return config
 
     def reload_config_if_changed(self) -> bool:
         try:
@@ -245,7 +229,6 @@ class InputOverlayServer:
                     old_port           = self.port
                     old_analog_enabled = self.analog_enabled
                     old_analog_device  = self.analog_device
-                    old_raw_mouse      = self.raw_mouse_enabled
                     old_linux_device   = self.linux_raw_mouse_device
                     old_auth_token     = self.auth_token
                     old_http_enabled   = self.http_enabled
@@ -258,16 +241,16 @@ class InputOverlayServer:
                     self.host                     = new_host
                     self.port                     = new_port
                     self.auth_token               = config.get("auth_token", self.auth_token)
-                    self.analog_enabled           = config.get("analog_enabled", False)
-                    self.analog_device            = config.get("analog_device", None)
-                    self.key_whitelist            = config.get("key_whitelist", [])
-                    self.balloon_notifications    = config.get("balloon_notifications", True)
-                    self.raw_mouse_enabled        = config.get("raw_mouse_enabled", False)
-                    self.raw_mouse_min_delta      = config.get("raw_mouse_min_delta", 0)
-                    self.linux_raw_mouse_device   = config.get("linux_raw_mouse_device", "")
-                    self.http_enabled             = config.get("http_enabled", False)
-                    self.http_host                = config.get("http_host", self.http_host)
-                    self.http_port                = config.get("http_port", 4456)
+                    self.analog_enabled           = config.get("analog_enabled",           CONFIG_DEFAULTS["analog_enabled"])
+                    self.analog_device            = config.get("analog_device",            CONFIG_DEFAULTS["analog_device"])
+                    self.key_whitelist            = config.get("key_whitelist",            CONFIG_DEFAULTS["key_whitelist"])
+                    self.balloon_notifications    = config.get("balloon_notifications",    CONFIG_DEFAULTS["balloon_notifications"])
+                    self.raw_mouse_min_delta      = config.get("raw_mouse_min_delta",      CONFIG_DEFAULTS["raw_mouse_min_delta"])
+                    self.linux_raw_mouse_device   = config.get("linux_raw_mouse_device",   CONFIG_DEFAULTS["linux_raw_mouse_device"])
+                    self.send_mouse_move          = config.get("send_mouse_move",          CONFIG_DEFAULTS["send_mouse_move"])
+                    self.http_enabled             = config.get("http_enabled",             CONFIG_DEFAULTS["http_enabled"])
+                    self.http_host                = config.get("http_host",                self.http_host)
+                    self.http_port                = config.get("http_port",                CONFIG_DEFAULTS["http_port"])
 
                     logger.info("settings updated - analog: %s, device: %s",
                                 self.analog_enabled, self.analog_device)
@@ -293,13 +276,7 @@ class InputOverlayServer:
                         if self.analog_enabled:
                             self.start_analog_support()
 
-                    if sys.platform == "win32":
-                        if old_raw_mouse != self.raw_mouse_enabled:
-                            if old_raw_mouse:
-                                self.stop_raw_mouse()
-                            if self.raw_mouse_enabled:
-                                self.start_raw_mouse()
-                    else:
+                    if sys.platform != "win32":
                         if old_linux_device != self.linux_raw_mouse_device:
                             self.stop_raw_mouse()
                             if self.linux_raw_mouse_device:
@@ -378,7 +355,7 @@ class InputOverlayServer:
                    is_scroll: bool = False, is_mouse_move: bool = False) -> bool:
         if not self.key_whitelist:
             return True
-        if is_mouse_move and (self.raw_mouse_enabled or self.linux_raw_mouse_device):
+        if is_mouse_move and self.send_mouse_move:
             return True
         if is_scroll:
             if "mouse_wheel" in self.key_whitelist:
@@ -463,17 +440,22 @@ class InputOverlayServer:
             self.queue_message({"event_type": "mouse_wheel", "rotation": rotation})
 
     def _on_raw_mouse_move(self, dx: int, dy: int) -> None:
-        if not self.is_allowed(0, is_mouse_move=True):
+        if not self.send_mouse_move:
             return
         self.queue_message({"event_type": "mouse_moved", "dx": dx, "dy": dy})
 
     def start_input_listeners(self) -> None:
         if sys.platform == "win32":
-            self._input_listener = PynputInputListener(
+            if not RAW_INPUT_AVAILABLE:
+                logger.error("raw input unavailable - input listeners not started")
+                return
+            self._input_listener = RawInputBuffer(
                 on_key_press=self.on_key_press,
                 on_key_release=self.on_key_release,
                 on_mouse_click=self.on_mouse_click,
                 on_mouse_scroll=self.on_mouse_scroll,
+                on_mouse_move=self._on_raw_mouse_move,
+                min_delta=self.raw_mouse_min_delta,
             )
         else:
             if not EVDEV_AVAILABLE:
@@ -500,20 +482,14 @@ class InputOverlayServer:
         if self._raw_mouse_thread and self._raw_mouse_thread.is_alive():
             logger.debug("rawinput thread already running")
             return
-        if sys.platform == "win32":
-            self._raw_mouse_thread = RawMouseThread(
-                callback=self._on_raw_mouse_move,
-                min_delta=self.raw_mouse_min_delta,
-            )
-        else:
-            if not self.linux_raw_mouse_device:
-                logger.debug("raw mouse (linux): no device selected, not starting")
-                return
-            self._raw_mouse_thread = RawMouseThread(
-                callback=self._on_raw_mouse_move,
-                device_path=self.linux_raw_mouse_device,
-                min_delta=self.raw_mouse_min_delta,
-            )
+        if not self.linux_raw_mouse_device:
+            logger.debug("raw mouse (linux): no device selected, not starting")
+            return
+        self._raw_mouse_thread = RawMouseThread(
+            callback=self._on_raw_mouse_move,
+            device_path=self.linux_raw_mouse_device,
+            min_delta=self.raw_mouse_min_delta,
+        )
         self._raw_mouse_thread.start()
         logger.info("rawinput thread started")
 
@@ -698,12 +674,8 @@ class InputOverlayServer:
         self.queue_processor_task = asyncio.create_task(self.process_message_queue())
         self.start_input_listeners()
         self.start_analog_support()
-        if sys.platform == "win32":
-            if self.raw_mouse_enabled:
-                self.start_raw_mouse()
-        else:
-            if self.linux_raw_mouse_device:
-                self.start_raw_mouse()
+        if sys.platform != "win32" and self.linux_raw_mouse_device:
+            self.start_raw_mouse()
 
         if self.auth_token:
             logger.info("auth token: %s****", self.auth_token[:4] if len(self.auth_token) >= 4 else self.auth_token)

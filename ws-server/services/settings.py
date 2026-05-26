@@ -32,12 +32,15 @@ from services.consts import (
 )
 
 if sys.platform == "win32":
-    from services.pynput_input import PynputInputListener
-    _PYNPUT_AVAILABLE = True
-else:
-    _PYNPUT_AVAILABLE = False
     try:
-        from services.evdev_input import EvdevInputListener as _EvdevInputListener
+        from services.windows.input_rawinputbuffer import RawInputBuffer as _RawInputListener
+        _RAWINPUT_AVAILABLE = True
+    except Exception:
+        _RAWINPUT_AVAILABLE = False
+else:
+    _RAWINPUT_AVAILABLE = False
+    try:
+        from services.linux.input_keys import EvdevInputListener as _EvdevInputListener
         _EVDEV_AVAILABLE = True
     except ImportError:
         _EVDEV_AVAILABLE = False
@@ -97,7 +100,7 @@ class CS16DisabledCheckBox(InstantTooltipCheckBox):
             painter.end()
         else:
             super().paintEvent(event)
-from services.utils import get_resource_path, is_autostart_enabled, set_autostart
+from services.utils import CONFIG_DEFAULTS, get_resource_path, is_autostart_enabled, load_or_create_config, set_autostart
 
 logger = logging.getLogger(__name__)
 
@@ -159,40 +162,22 @@ class SettingsEditor(QMainWindow):
                 logger.debug("settings: removed old restart.flag on open")
         except Exception:
             pass
-        try:
-            with open(self.config_path, "r") as f:
-                config = json.load(f)
-            self.temp_whitelist          = list(config.get("key_whitelist", []))
-            self.host                    = config.get("host", "0.0.0.0")
-            self.port                    = config.get("port", 8080)
-            self._original_host          = self.host
-            self._original_port          = self.port
-            self.http_enabled            = config.get("http_enabled", False)
-            self.http_port               = config.get("http_port", 4456)
-            self.auth_token              = config.get("auth_token", "")
-            self.analog_enabled          = config.get("analog_enabled", False)
-            self.analog_device           = config.get("analog_device", None)
-            self.balloon_enabled         = config.get("balloon_notifications", True)
-            self.raw_mouse_enabled       = config.get("raw_mouse_enabled", False)
-            self.linux_raw_mouse_device  = config.get("linux_raw_mouse_device", "")
-            self.autostart_enabled       = is_autostart_enabled()
-            self.dismissed_versions      = config.get("dismissed_versions", [])
-        except Exception:
-            self.temp_whitelist          = []
-            self.host                    = "0.0.0.0"
-            self.port                    = 8080
-            self._original_host          = self.host
-            self._original_port          = self.port
-            self.http_enabled            = False
-            self.http_port               = 4456
-            self.auth_token              = ""
-            self.analog_enabled          = False
-            self.analog_device           = None
-            self.balloon_enabled         = True
-            self.raw_mouse_enabled       = False
-            self.linux_raw_mouse_device  = ""
-            self.autostart_enabled       = is_autostart_enabled()
-            self.dismissed_versions      = []
+        config = load_or_create_config(self.config_path)
+        self.temp_whitelist          = list(config.get("key_whitelist",          CONFIG_DEFAULTS["key_whitelist"]))
+        self.host                    = config.get("host",                         CONFIG_DEFAULTS["host"])
+        self.port                    = config.get("port",                         CONFIG_DEFAULTS["port"])
+        self._original_host          = self.host
+        self._original_port          = self.port
+        self.http_enabled            = config.get("http_enabled",                CONFIG_DEFAULTS["http_enabled"])
+        self.http_port               = config.get("http_port",                   CONFIG_DEFAULTS["http_port"])
+        self.auth_token              = config.get("auth_token",                  CONFIG_DEFAULTS["auth_token"])
+        self.analog_enabled          = config.get("analog_enabled",              CONFIG_DEFAULTS["analog_enabled"])
+        self.analog_device           = config.get("analog_device",               CONFIG_DEFAULTS["analog_device"])
+        self.balloon_enabled         = config.get("balloon_notifications",       CONFIG_DEFAULTS["balloon_notifications"])
+        self.linux_raw_mouse_device  = config.get("linux_raw_mouse_device",      CONFIG_DEFAULTS["linux_raw_mouse_device"])
+        self.send_mouse_move         = config.get("send_mouse_move",             CONFIG_DEFAULTS["send_mouse_move"])
+        self.autostart_enabled       = is_autostart_enabled()
+        self.dismissed_versions      = config.get("dismissed_versions",          CONFIG_DEFAULTS["dismissed_versions"])
 
     def showEvent(self, event) -> None:
         super().showEvent(event)
@@ -217,9 +202,8 @@ class SettingsEditor(QMainWindow):
             config["analog_enabled"]        = self.analog_checkbox.isChecked()
             config["balloon_notifications"] = self.balloon_checkbox.isChecked()
             config["dismissed_versions"]    = self.dismissed_versions
-            if sys.platform == "win32":
-                config["raw_mouse_enabled"] = self.raw_mouse_checkbox.isChecked()
-            else:
+            config["send_mouse_move"] = self.send_mouse_move_checkbox.isChecked()
+            if sys.platform != "win32":
                 config["linux_raw_mouse_device"] = self.linux_mouse_combo.currentData() or ""
             if self.device_combo.currentData():
                 config["analog_device"] = self.device_combo.currentData()
@@ -255,7 +239,7 @@ class SettingsEditor(QMainWindow):
 
         if sys.platform == "win32" and not _is_admin():
             admin_warning = QLabel(
-                "[!] Not running as admin! You might also run into port issues.\n[!] Both keys and RawInputBuffer might not work correctly when tabbed into apps that run with admin elevations themselves.\n[!] Consider restarting as admin. Setting `Start with Windows` will automatically start the ws server with admin rights on the next boot."
+                "⚠ Not running as admin! Port binding issues may occur.\n⚠ Windows wont post WM_INPUT messages to a non-admin process while an admin app is in focus,\n⚠ so the overlay might not work when tabbed into a admin elevated app or game.\n⚠ Consider restarting as admin. Setting `Start with Windows` will automatically start the ws server with admin rights on the next boot."
             )
             admin_warning.setWordWrap(True)
             admin_warning.setContentsMargins(10, 6, 10, 6)
@@ -383,12 +367,7 @@ class SettingsEditor(QMainWindow):
             self.autostart_checkbox.setToolTip("Admin startup is needed in order to create/remove the Scheduled Task")
         app_layout.addWidget(self.autostart_checkbox)
 
-        if sys.platform == "win32":
-            self.raw_mouse_checkbox = InstantTooltipCheckBox("Enable RawInputBuffer reads from the Windows API\n(mouse movement for mouse_pad element)")
-            self.raw_mouse_checkbox.setToolTip("[!] Requires the ws server to run with admin privileges depending on foreground window privileges\n[!] Also make sure your bindows is up to date, preferably Windows 11 25H2 or higher\n[!] (older versions may limit your `polling rate` when using RawInputBuffer from the background)")
-            self.raw_mouse_checkbox.setChecked(self.raw_mouse_enabled)
-            app_layout.addWidget(self.raw_mouse_checkbox)
-        else:
+        if sys.platform != "win32":
             raw_mouse_lbl = QLabel("Raw Mouse Device\n(mouse movement for mouse_pad element):")
             raw_mouse_lbl.setStyleSheet("color: #a0aa95; font-weight: normal; margin-top: 4px;")
             app_layout.addWidget(raw_mouse_lbl)
@@ -482,6 +461,11 @@ class SettingsEditor(QMainWindow):
         self.scroll_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
         self.scroll_area.setWidget(self.scroll_content)
         whitelist_layout.addWidget(self.scroll_area)
+
+        self.send_mouse_move_checkbox = InstantTooltipCheckBox("Enable mouse movement")
+        self.send_mouse_move_checkbox.setToolTip("Broadcast mouse movement deltas to connected overlay clients.\nDisable if you don't use the mouse_pad element.")
+        self.send_mouse_move_checkbox.setChecked(self.send_mouse_move)
+        whitelist_layout.addWidget(self.send_mouse_move_checkbox)
 
         whitelist_group.setLayout(whitelist_layout)
         right_column.addWidget(whitelist_group)
@@ -691,7 +675,7 @@ class SettingsEditor(QMainWindow):
         self.is_listening = True
         self.add_btn.setText("LISTENING... [ESC TO CANCEL]")
 
-        if _PYNPUT_AVAILABLE:
+        if _RAWINPUT_AVAILABLE:
             self._start_listening_pynput()
         elif _EVDEV_AVAILABLE:
             self._start_listening_evdev()
@@ -725,7 +709,7 @@ class SettingsEditor(QMainWindow):
             self.signals.key_detected.emit("mouse_wheel")
             self.signals.stop_listening.emit()
 
-        self._capture_listener = PynputInputListener(
+        self._capture_listener = _RawInputListener(
             on_key_press=on_key_press,
             on_key_release=on_key_release,
             on_mouse_click=on_mouse_click,
