@@ -676,14 +676,14 @@ class SettingsEditor(QMainWindow):
         self.add_btn.setText("LISTENING... [ESC TO CANCEL]")
 
         if _RAWINPUT_AVAILABLE:
-            self._start_listening_pynput()
+            self._start_listening_rawinput()
         elif _EVDEV_AVAILABLE:
             self._start_listening_evdev()
         else:
             logger.warning("no input backend there for getting keys")
             self.stop_listening()
 
-    def _start_listening_pynput(self) -> None:
+    def _start_listening_rawinput(self) -> None:
         _ESC_VK = 27
 
         def on_key_press(rawcode: int):
