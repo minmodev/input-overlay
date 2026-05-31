@@ -354,8 +354,12 @@ class RawInputBuffer(threading.Thread):
 
             raw = bytes(buf)
             offset = 0
+            ri_size = ctypes.sizeof(RAWINPUT)
             for _ in range(count):
-                ri = RAWINPUT.from_buffer_copy(raw[offset:])
+                chunk = raw[offset:]
+                if len(chunk) < ri_size:
+                    chunk = chunk + b'\x00' * (ri_size - len(chunk))
+                ri = RAWINPUT.from_buffer_copy(chunk)
                 self._handle_rawinput(ri)
                 offset = (offset + ri.header.dwSize + 7) & ~7
 
