@@ -36,6 +36,7 @@ export class OverlayVisualiser {
         this.MOUSEPAD_TEXTURE_OPACITY = 1;
         this.MOUSEPAD_SHOW_DISTANCE = false;
         this.MOUSEPAD_DPI = 400;
+        this.MOUSEPAD_RESET_DISTANCE_AFTER_FADE = false;
         this._mousePadTotalDistancePx = 0;
         this.MOUSEPAD_PAN_X = 0;
         this.MOUSEPAD_PAN_Y = 0;
@@ -139,6 +140,7 @@ export class OverlayVisualiser {
         this.MOUSEPAD_M1_HIGHLIGHT = opts.mousetrailm1highlight === true || opts.mousetrailm1highlight === "true" || opts.mousetrailm1highlight === "1";
         this.MOUSEPAD_SHOW_DISTANCE = opts.showmousedistance === true || opts.showmousedistance === "true" || opts.showmousedistance === "1";
         this.MOUSEPAD_DPI = parseInt(opts.mousedistancedpi) || 400;
+        this.MOUSEPAD_RESET_DISTANCE_AFTER_FADE = opts.resetmousedistanceafterfade === true || opts.resetmousedistanceafterfade === "true" || opts.resetmousedistanceafterfade === "1";
 
         const newTextureUrl = opts.mousepadtexture || "";
         const newTextureZoom = parseFloat(opts.mousepadtexturezoom) || 1;
@@ -1151,6 +1153,8 @@ export class OverlayVisualiser {
         if (this.mousePadTrail.length > 0 && this.mousePadTrail.every(p => p === null)) this.mousePadTrail = [];
         const trailEmpty = this.mousePadTrail.length === 0;
         const hasLiveTrail = (!trailEmpty && (noFadeout ? true : idleFade > 0)) || (this.MOUSEPAD_SHOW_DISTANCE && !trailEmpty);
+		
+		if (this.MOUSEPAD_RESET_DISTANCE_AFTER_FADE && !hasLiveTrail) this._mousePadTotalDistancePx = 0;
 
         if (this._mousePadWasLiveTrail && !hasLiveTrail) {
             this.mousePadTrail = [];
