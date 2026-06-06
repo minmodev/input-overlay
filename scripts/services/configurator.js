@@ -75,6 +75,7 @@ export class ConfiguratorMode {
             mousepadtextureopacity: "1",
             showmousedistance: false,
             mousedistancedpi: "400",
+            resetmousedistanceafterfade: false,
         });
     }
 
@@ -132,6 +133,7 @@ export class ConfiguratorMode {
             mousepadtextureopacity: val("mousepadtextureopacity") || "1",
             showmousedistance: chk("showmousedistance"),
             mousedistancedpi: val("mousedistancedpi") || "400",
+            resetmousedistanceafterfade: chk("resetmousedistanceafterfade"),
         };
     }
 
@@ -226,6 +228,7 @@ export class ConfiguratorMode {
         applyValue("mousepadtextureopacity", settings.mousepadtextureopacity ?? "1");
         applyValue("showmousedistance", settings.showmousedistance ?? false);
         applyValue("mousedistancedpi", settings.mousedistancedpi ?? "400");
+        applyValue("resetmousedistanceafterfade", settings.resetmousedistanceafterfade ?? false);
     }
 
     updateState(settings = null) {
@@ -386,12 +389,17 @@ export class ConfiguratorMode {
         wsauthEl.addEventListener("input", () => localStorage.setItem("overlay_wsauth", wsauthEl.value));
 
         const distanceCheckbox = document.getElementById("showmousedistance");
+        const distanceResetCheckbox = document.getElementById("resetmousedistanceafterfade");
+        const distanceResetLabel = document.getElementById("resetmousedistanceafterfadelabel");
         const dpiSlider = document.getElementById("mousedistancedpi");
         const dpiLabel = document.getElementById("mousedistancedpivalue");
         const syncDpiState = () => {
             const enabled = distanceCheckbox?.checked ?? false;
             if (dpiSlider) { dpiSlider.disabled = !enabled; dpiSlider.style.opacity = enabled ? "1" : "0.5"; }
             if (dpiLabel) dpiLabel.style.opacity = enabled ? "1" : "0.4";
+
+            if (distanceResetCheckbox) { distanceResetCheckbox.disabled = !enabled; distanceResetCheckbox.style.opacity = enabled ? "1" : "0.5"; }
+            if (distanceResetLabel) distanceResetLabel.style.opacity = enabled ? "1" : "0.4";
         };
         distanceCheckbox?.addEventListener("change", syncDpiState);
         syncDpiState();

@@ -723,6 +723,13 @@ li {
     margin-bottom: 8px;
 }
 
+.cfg-slider-quad {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 8px;
+}
+
 .cfg-slider-field {
     display: flex;
     flex-direction: column;
