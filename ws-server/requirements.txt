@@ -8,3 +8,5 @@ winotify; sys_platform == "win32"
 certifi
 markdown
 evdev; sys_platform == "linux"
+hidapi; sys_platform == "win32"
+hid; sys_platform == "linux"

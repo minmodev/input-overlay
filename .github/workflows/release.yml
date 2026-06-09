@@ -111,6 +111,8 @@ jobs:
             -   left-click or right-click the tray icon for settings
             -   if the tray icon doesn't appear, a control window will open automatically instead
 
+            > [!NOTICE]
+            > some distros might require you installing libhid and its dependencies manually for analogsense support
 
             ## **checksum:**
 
