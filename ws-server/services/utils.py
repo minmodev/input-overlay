@@ -20,9 +20,10 @@ CONFIG_DEFAULTS: dict = {
     "analog_device":          None,
     "key_whitelist":          [],
     "balloon_notifications":  True,
-    "raw_mouse_min_delta":    0,
-    "linux_raw_mouse_device": "",
-    "send_mouse_move":        True,
+    "raw_mouse_min_delta":         0,
+    "linux_raw_mouse_device":      "",
+    "linux_evdev_keyboard_device": "",
+    "send_mouse_move":             True,
     "dismissed_versions":     [],
     "cpu_affinity":           [0, 1],
 }

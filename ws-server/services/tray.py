@@ -428,8 +428,9 @@ def main(server_class=None) -> None:
     server.key_whitelist          = config.get("key_whitelist",         CONFIG_DEFAULTS["key_whitelist"])
     server.balloon_notifications  = config.get("balloon_notifications", CONFIG_DEFAULTS["balloon_notifications"])
     server.raw_mouse_min_delta    = config.get("raw_mouse_min_delta",   CONFIG_DEFAULTS["raw_mouse_min_delta"])
-    server.linux_raw_mouse_device = config.get("linux_raw_mouse_device",CONFIG_DEFAULTS["linux_raw_mouse_device"])
-    server.send_mouse_move        = config.get("send_mouse_move",       CONFIG_DEFAULTS["send_mouse_move"])
+    server.linux_raw_mouse_device      = config.get("linux_raw_mouse_device",      CONFIG_DEFAULTS["linux_raw_mouse_device"])
+    server.linux_evdev_keyboard_device = config.get("linux_evdev_keyboard_device", CONFIG_DEFAULTS["linux_evdev_keyboard_device"])
+    server.send_mouse_move             = config.get("send_mouse_move",             CONFIG_DEFAULTS["send_mouse_move"])
 
     if sys.platform == "win32":
         _apply_cpu_affinity(config.get("cpu_affinity", [0, 1]))

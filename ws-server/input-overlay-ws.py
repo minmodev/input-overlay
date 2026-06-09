@@ -106,6 +106,7 @@ class InputOverlayServer:
 
         self.raw_mouse_min_delta = 0
         self.linux_raw_mouse_device: str = ""
+        self.linux_evdev_keyboard_device: str = ""
         self._raw_mouse_thread   = None
         self.send_mouse_move: bool = True
 
@@ -231,6 +232,7 @@ class InputOverlayServer:
                     old_analog_enabled = self.analog_enabled
                     old_analog_device  = self.analog_device
                     old_linux_device   = self.linux_raw_mouse_device
+                    old_linux_kbd      = self.linux_evdev_keyboard_device
                     old_auth_token     = self.auth_token
                     old_http_enabled   = self.http_enabled
                     old_http_host      = self.http_host
@@ -247,7 +249,8 @@ class InputOverlayServer:
                     self.key_whitelist            = config.get("key_whitelist",            CONFIG_DEFAULTS["key_whitelist"])
                     self.balloon_notifications    = config.get("balloon_notifications",    CONFIG_DEFAULTS["balloon_notifications"])
                     self.raw_mouse_min_delta      = config.get("raw_mouse_min_delta",      CONFIG_DEFAULTS["raw_mouse_min_delta"])
-                    self.linux_raw_mouse_device   = config.get("linux_raw_mouse_device",   CONFIG_DEFAULTS["linux_raw_mouse_device"])
+                    self.linux_raw_mouse_device        = config.get("linux_raw_mouse_device",      CONFIG_DEFAULTS["linux_raw_mouse_device"])
+                    self.linux_evdev_keyboard_device   = config.get("linux_evdev_keyboard_device", CONFIG_DEFAULTS["linux_evdev_keyboard_device"])
                     self.send_mouse_move          = config.get("send_mouse_move",          CONFIG_DEFAULTS["send_mouse_move"])
                     self.http_enabled             = config.get("http_enabled",             CONFIG_DEFAULTS["http_enabled"])
                     self.http_host                = config.get("http_host",                self.http_host)
@@ -282,6 +285,9 @@ class InputOverlayServer:
                             self.stop_raw_mouse()
                             if self.linux_raw_mouse_device:
                                 self.start_raw_mouse()
+                        if old_linux_kbd != self.linux_evdev_keyboard_device or old_linux_device != self.linux_raw_mouse_device:
+                            self.stop_input_listeners()
+                            self.start_input_listeners()
 
                     if old_auth_token != self.auth_token and self.authenticated_clients:
                         logger.info("auth token changed, kicking existing clients...")
@@ -472,6 +478,7 @@ class InputOverlayServer:
                 on_key_release=self.on_key_release,
                 on_mouse_click=self.on_mouse_click,
                 on_mouse_scroll=self.on_mouse_scroll,
+                keyboard_device_path=self.linux_evdev_keyboard_device,
             )
         self._input_listener.start()
 
@@ -507,6 +514,8 @@ class InputOverlayServer:
             callback=self._on_raw_mouse_move,
             device_path=self.linux_raw_mouse_device,
             min_delta=self.raw_mouse_min_delta,
+            on_mouse_click=self.on_mouse_click,
+            on_mouse_scroll=self.on_mouse_scroll,
         )
         self._raw_mouse_thread.start()
         logger.info("rawinput thread started")

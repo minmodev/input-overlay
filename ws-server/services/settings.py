@@ -180,7 +180,8 @@ class SettingsEditor(QMainWindow):
         self.analog_enabled          = config.get("analog_enabled",              CONFIG_DEFAULTS["analog_enabled"])
         self.analog_device           = config.get("analog_device",               CONFIG_DEFAULTS["analog_device"])
         self.balloon_enabled         = config.get("balloon_notifications",       CONFIG_DEFAULTS["balloon_notifications"])
-        self.linux_raw_mouse_device  = config.get("linux_raw_mouse_device",      CONFIG_DEFAULTS["linux_raw_mouse_device"])
+        self.linux_raw_mouse_device         = config.get("linux_raw_mouse_device",      CONFIG_DEFAULTS["linux_raw_mouse_device"])
+        self.linux_evdev_keyboard_device    = config.get("linux_evdev_keyboard_device", CONFIG_DEFAULTS["linux_evdev_keyboard_device"])
         self.send_mouse_move         = config.get("send_mouse_move",             CONFIG_DEFAULTS["send_mouse_move"])
         self.autostart_enabled       = is_autostart_enabled()
         self.dismissed_versions      = config.get("dismissed_versions",          CONFIG_DEFAULTS["dismissed_versions"])
@@ -210,7 +211,8 @@ class SettingsEditor(QMainWindow):
             config["dismissed_versions"]    = self.dismissed_versions
             config["send_mouse_move"] = self.send_mouse_move_checkbox.isChecked()
             if sys.platform != "win32":
-                config["linux_raw_mouse_device"] = self.linux_mouse_combo.currentData() or ""
+                config["linux_raw_mouse_device"]      = self.linux_mouse_combo.currentData() or ""
+                config["linux_evdev_keyboard_device"] = self.linux_kbd_combo.currentData() or ""
             if self.device_combo.currentData():
                 config["analog_device"] = self.device_combo.currentData()
 
@@ -232,7 +234,7 @@ class SettingsEditor(QMainWindow):
 
     def setup_ui(self) -> None:
         self.setWindowTitle("SETTINGS")
-        self.setFixedSize(1000, 840)
+        self.setFixedSize(1000, 900)
 
         central = QWidget()
         self.setCentralWidget(central)
@@ -369,7 +371,29 @@ class SettingsEditor(QMainWindow):
         app_layout.addWidget(self.autostart_checkbox)
 
         if sys.platform != "win32":
-            raw_mouse_lbl = QLabel("Raw Mouse Device\n(mouse movement for mouse_pad element):")
+            kbd_lbl = QLabel("Keyboard Device:")
+            kbd_lbl.setStyleSheet("color: #a0aa95; font-weight: normal; margin-top: 4px;")
+            app_layout.addWidget(kbd_lbl)
+
+            kbd_row = QHBoxLayout()
+            kbd_row.setSpacing(4)
+
+            self.linux_kbd_combo = InstantTooltipComboBox()
+            self.linux_kbd_combo.setToolTip(
+                "Select the evdev keyboard device for key press/release events.\n"
+                "Leave on Auto-detect to use all detected keyboards."
+            )
+            self._populate_linux_kbd_combo()
+
+            refresh_kbd_btn = QPushButton("REFRESH")
+            refresh_kbd_btn.setFixedWidth(80)
+            refresh_kbd_btn.clicked.connect(self._refresh_linux_evdev_devices)
+
+            kbd_row.addWidget(self.linux_kbd_combo, 1)
+            kbd_row.addWidget(refresh_kbd_btn)
+            app_layout.addLayout(kbd_row)
+
+            raw_mouse_lbl = QLabel("Mouse Device\n(clicks, scroll & mouse_pad movement):")
             raw_mouse_lbl.setStyleSheet("color: #a0aa95; font-weight: normal; margin-top: 4px;")
             app_layout.addWidget(raw_mouse_lbl)
 
@@ -378,9 +402,9 @@ class SettingsEditor(QMainWindow):
 
             self.linux_mouse_combo = InstantTooltipComboBox()
             self.linux_mouse_combo.setToolTip(
-                "Select a raw evdev mouse device for the mouse_pad element\n"
-                "Linux has no RawInputBuffer API... this reads directly from /dev/input\n"
-                "Pick the specific hardware device to avoid double counting.\n"
+                "Select the evdev mouse device for clicks, scroll, and mouse_pad movement.\n"
+                "Linux has no RawInputBuffer API — this reads directly from /dev/input.\n"
+                "Pick the specific hardware device to avoid double counting."
             )
             self._populate_linux_mouse_combo()
 
@@ -662,12 +686,48 @@ class SettingsEditor(QMainWindow):
                 self.device_combo.setCurrentIndex(idx)
         self.device_combo.setEnabled(self.analog_checkbox.isChecked())
 
+    def _populate_linux_kbd_combo(self) -> None:
+        if sys.platform == "win32":
+            return
+        try:
+            from services.linux.input_keys import enum_evdev_keyboards
+            kbd_devs = enum_evdev_keyboards()
+        except Exception:
+            kbd_devs = []
+
+        self.linux_kbd_combo.clear()
+        self.linux_kbd_combo.addItem("Disabled", "")
+        for dev in kbd_devs:
+            label = f"{dev['name']}  [{dev['path']}]"
+            self.linux_kbd_combo.addItem(label, dev["path"])
+
+        if self.linux_evdev_keyboard_device:
+            idx = self.linux_kbd_combo.findData(self.linux_evdev_keyboard_device)
+            if idx >= 0:
+                self.linux_kbd_combo.setCurrentIndex(idx)
+
+    def _refresh_linux_evdev_devices(self) -> None:
+        if sys.platform == "win32":
+            return
+        current_kbd = self.linux_kbd_combo.currentData()
+        self._populate_linux_kbd_combo()
+        if current_kbd:
+            idx = self.linux_kbd_combo.findData(current_kbd)
+            if idx >= 0:
+                self.linux_kbd_combo.setCurrentIndex(idx)
+
     def _populate_linux_mouse_combo(self) -> None:
         if sys.platform == "win32":
             return
         try:
+            from services.linux.input_keys import enum_evdev_mice
             from services.linux.input_mouse_move import enum_raw_mouse_devices
-            mouse_devs = enum_raw_mouse_devices()
+            seen: set = set()
+            mouse_devs: list = []
+            for dev in [*enum_evdev_mice(), *enum_raw_mouse_devices()]:
+                if dev["path"] not in seen:
+                    seen.add(dev["path"])
+                    mouse_devs.append(dev)
         except Exception:
             mouse_devs = []
 
@@ -775,6 +835,7 @@ class SettingsEditor(QMainWindow):
             on_key_release=on_key_release,
             on_mouse_click=on_mouse_click,
             on_mouse_scroll=on_mouse_scroll,
+            capture_all=True,
         )
         self._capture_listener.start()
 

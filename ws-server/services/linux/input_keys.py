@@ -25,22 +25,70 @@ _EVDEV_BTN_TO_CODE: dict[int, int] = {
 }
 
 _REL_WHEEL = 8   #vertical scroll
-RESCAN_INTERVAL = 5.0
+
+
+def enum_evdev_keyboards() -> list[dict]:
+    try:
+        import evdev  #PLC0415
+    except ImportError:
+        return []
+    results = []
+    try:
+        for path in evdev.list_devices():
+            try:
+                dev  = evdev.InputDevice(path)
+                caps = dev.capabilities()
+                keys = caps.get(evdev.ecodes.EV_KEY, [])
+                if evdev.ecodes.KEY_A in keys:
+                    results.append({"path": path, "name": dev.name, "phys": getattr(dev, "phys", "")})
+                dev.close()
+            except Exception:
+                pass
+    except Exception as e:
+        logger.debug("enum_evdev_keyboards error: %s", e)
+    return results
+
+
+def enum_evdev_mice() -> list[dict]:
+    try:
+        import evdev  #PLC0415
+    except ImportError:
+        return []
+    results = []
+    try:
+        for path in evdev.list_devices():
+            try:
+                dev  = evdev.InputDevice(path)
+                caps = dev.capabilities()
+                keys = caps.get(evdev.ecodes.EV_KEY, [])
+                if evdev.ecodes.BTN_LEFT in keys:
+                    results.append({"path": path, "name": dev.name, "phys": getattr(dev, "phys", "")})
+                dev.close()
+            except Exception:
+                pass
+    except Exception as e:
+        logger.debug("enum_evdev_mice error: %s", e)
+    return results
+
 
 class EvdevInputListener(threading.Thread):
     def __init__(
         self,
-        on_key_press:    Callable[[int], None],
-        on_key_release:  Callable[[int], None],
-        on_mouse_click:  Callable[[int, bool], None],
-        on_mouse_scroll: Callable[[int], None],
+        on_key_press:         Callable[[int], None],
+        on_key_release:       Callable[[int], None],
+        on_mouse_click:       Callable[[int, bool], None],
+        on_mouse_scroll:      Callable[[int], None],
+        keyboard_device_path: str  = "",
+        capture_all:          bool = False,
     ) -> None:
         super().__init__(daemon=True, name="EvdevInputListener")
-        self._on_key_press    = on_key_press
-        self._on_key_release  = on_key_release
-        self._on_mouse_click  = on_mouse_click
-        self._on_mouse_scroll = on_mouse_scroll
-        self._stop_event      = threading.Event()
+        self._on_key_press          = on_key_press
+        self._on_key_release        = on_key_release
+        self._on_mouse_click        = on_mouse_click
+        self._on_mouse_scroll       = on_mouse_scroll
+        self._keyboard_device_path  = keyboard_device_path
+        self._capture_all           = capture_all
+        self._stop_event            = threading.Event()
 
     def stop(self) -> None:
         self._stop_event.set()
@@ -54,19 +102,14 @@ class EvdevInputListener(threading.Thread):
             return
 
         logger.info("evdev listener starting")
-        devices: dict[str, evdev.InputDevice] = {}
-        last_scan = 0.0
+        devices = self._build_device_set(evdev, self._keyboard_device_path, self._capture_all)
+
+        if not devices:
+            logger.warning("evdev: no devices found")
+        else:
+            logger.info("evdev: %d device(s) opened", len(devices))
 
         while not self._stop_event.is_set():
-            now = time.monotonic()
-            if now - last_scan >= RESCAN_INTERVAL:
-                self._refresh_devices(evdev, devices)
-                if last_scan == 0.0:
-                    logger.info("evdev: %d devices opened", len(devices))
-                    if not devices:
-                        logger.warning("evdev: no devices")
-                last_scan = now
-
             if not devices:
                 time.sleep(0.5)
                 continue
@@ -75,8 +118,6 @@ class EvdevInputListener(threading.Thread):
             try:
                 readable, _, _ = select.select(list(fds.keys()), [], [], 0.5)
             except (ValueError, OSError):
-                self._refresh_devices(evdev, devices)
-                last_scan = time.monotonic()
                 continue
 
             for fd in readable:
@@ -103,51 +144,39 @@ class EvdevInputListener(threading.Thread):
         logger.info("evdev listener stopped")
 
     @staticmethod
-    def _refresh_devices(evdev_mod, devices: dict) -> None:
-        try:
-            current_paths = set(evdev_mod.list_devices())
-        except Exception as e:
-            logger.debug("evdev: list_devices error: %s", e)
-            return
+    def _build_device_set(evdev_mod, keyboard_path: str, capture_all: bool = False) -> dict:
+        devices: dict = {}
 
-        for path in list(devices):
-            if path not in current_paths:
-                logger.info("evdev: removing exploded device %s", path)
-                try:
-                    devices[path].close()
-                except Exception:
-                    pass
-                del devices[path]
-
-        for path in current_paths:
-            if path in devices:
-                continue
+        if keyboard_path:
             try:
-                dev = evdev_mod.InputDevice(path)
-                caps = dev.capabilities()
-                ev_key  = evdev_mod.ecodes.EV_KEY
-                ev_rel  = evdev_mod.ecodes.EV_REL
-                has_keys   = ev_key in caps
-                has_scroll = ev_rel in caps
-
-                if not (has_keys or has_scroll):
-                    dev.close()
-                    continue
-
-                keys = caps.get(ev_key, [])
-                is_keyboard = evdev_mod.ecodes.KEY_A in keys
-                is_mouse    = evdev_mod.ecodes.BTN_LEFT in keys
-
-                if is_keyboard or is_mouse:
-                    devices[path] = dev
-                    logger.info("evdev: opened %s (%s): kbd=%s mouse=%s",
-                                path, dev.name, is_keyboard, is_mouse)
-                else:
-                    dev.close()
+                dev = evdev_mod.InputDevice(keyboard_path)
+                devices[keyboard_path] = dev
+                logger.info("evdev: opened keyboard %s (%s)", keyboard_path, dev.name)
             except PermissionError:
-                logger.warning("evdev: no permissions to open devices, do sudo usermod -aG input $USER or run with sudo", path)
+                logger.warning("evdev: no permission to open %s", keyboard_path)
             except Exception as e:
-                logger.debug("evdev: couldnt open %s: %s", path, e)
+                logger.warning("evdev: could not open %s: %s", keyboard_path, e)
+        elif capture_all:
+            #this is only really used by "add key" button in settings
+            try:
+                for path in evdev_mod.list_devices():
+                    try:
+                        dev  = evdev_mod.InputDevice(path)
+                        caps = dev.capabilities()
+                        keys = caps.get(evdev_mod.ecodes.EV_KEY, [])
+                        if evdev_mod.ecodes.KEY_A in keys or evdev_mod.ecodes.BTN_LEFT in keys:
+                            devices[path] = dev
+                            logger.info("evdev: capture_all opened %s (%s)", path, dev.name)
+                        else:
+                            dev.close()
+                    except PermissionError:
+                        logger.warning("evdev: no permission to open %s — try: sudo usermod -aG input $USER", path)
+                    except Exception as e:
+                        logger.debug("evdev: could not open %s: %s", path, e)
+            except Exception as e:
+                logger.debug("evdev: list_devices error: %s", e)
+
+        return devices
 
     def _dispatch(self, event) -> None:
         try:
@@ -162,14 +191,14 @@ class EvdevInputListener(threading.Thread):
             value   = event.value   #1=press  0=release  2=repeat
             pressed = value in (1, 2)
 
-            #see if mousebuttin
+            #see if mouse button
             btn_code = _EVDEV_BTN_TO_CODE.get(code)
             if btn_code is not None:
                 if value in (0, 1):
                     try:
                         self._on_mouse_click(btn_code, value == 1)
                     except Exception:
-                        self._on_mouse_click(btn_code, false)
+                        self._on_mouse_click(btn_code, False)
                         logger.exception("evdev: on_mouse_click error")
                 return
 
