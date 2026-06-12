@@ -170,7 +170,7 @@ class EvdevInputListener(threading.Thread):
                         else:
                             dev.close()
                     except PermissionError:
-                        logger.warning("evdev: no permission to open %s — try: sudo usermod -aG input $USER", path)
+                        logger.warning("evdev: no permission to open %s.. try: sudo usermod -aG input $USER", path)
                     except Exception as e:
                         logger.debug("evdev: could not open %s: %s", path, e)
             except Exception as e:

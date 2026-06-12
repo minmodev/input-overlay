@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Update Available</title>
+  <link rel="stylesheet" href="lib/cs16.min.css" />
+  <link rel="stylesheet" href="styles.css" />
+  <script src="lib/marked.min.js"></script>
+  <script type="module" src="/update.js" defer></script>
+</head>
+
+<body>
+  <div class="window">
+    <div id="title-bar" data-tauri-drag-region>
+      <span id="title-label" data-tauri-drag-region>UPDATE AVAILABLE</span>
+      <div class="title-btns">
+        <button class="title-btn close-btn" id="close-btn">X</button>
+      </div>
+    </div>
+
+    <div class="update-popup-content">
+      <div class="update-header">
+        <img src="assets/update.gif" style="max-width: 64px;" />
+        <p id="update-version-text" class="update-popup-version"></p>
+      </div>
+
+      <fieldset class="cs-group update-notes-group">
+        <legend>WHAT'S NEW</legend>
+        <div id="update-notes" class="update-notes"></div>
+      </fieldset>
+
+      <div class="update-popup-footer">
+        <button class="cs-btn" id="update-now-btn">UPDATE NOW</button>
+        <button class="cs-btn" id="update-skip-btn">SKIP VERSION</button>
+        <button class="cs-btn" id="update-later-btn">LATER</button>
+        <a class="accent-link" id="update-notes-link" href="#">VIEW RELEASE</a>
+      </div>
+    </div>
+
+    <div id="update-progress-modal" class="modal-overlay" hidden>
+      <div class="modal-box">
+        <p class="modal-msg" id="update-progress-status">starting...</p>
+        <div class="update-progress-track">
+          <div class="update-progress-fill" id="update-progress-fill"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+
+</html>

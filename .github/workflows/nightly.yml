@@ -5,7 +5,7 @@ on:
   push:
     branches:
       - main
-      - ws-server-rinb
+      - dev
 
 permissions:
   contents: read

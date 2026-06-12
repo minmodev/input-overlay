@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Settings</title>
+  <link rel="stylesheet" href="lib/cs16.min.css" />
+  <link rel="stylesheet" href="styles.css" />
+  <script type="module" src="/main.js" defer></script>
+</head>
+
+<body>
+  <div class="window">
+    <div id="title-bar" data-tauri-drag-region>
+      <span id="title-label" data-tauri-drag-region>SETTINGS</span>
+      <div class="title-btns">
+        <button class="title-btn" id="min-btn">-</button>
+        <button class="title-btn close-btn" id="close-title-btn">X</button>
+      </div>
+    </div>
+
+    <div class="content">
+      <div id="update-bar" class="update-bar" hidden>
+        <span id="update-text"></span>
+        <div class="update-bar-btns">
+          <button class="cs-btn" id="update-now-btn">UPDATE NOW</button>
+          <button class="cs-btn" id="update-later-btn">LATER</button>
+          <a class="accent-link" id="update-notes-link" href="#">WHAT'S NEW</a>
+        </div>
+      </div>
+
+      <div id="admin-warning" class="admin-warning" hidden>
+        &#9888; Not running as admin! Port binding issues may occur.<br>
+        &#9888; Windows won't post WM_INPUT messages to a non-admin process while an admin app is in focus,
+        so the overlay might not work when tabbed into an elevated app or game.<br>
+        &#9888; Consider restarting as admin. Setting "Start with Windows" will automatically start with admin rights on
+        next boot.
+      </div>
+      <div class="columns">
+
+        <!-- left -->
+        <div class="col">
+          <fieldset class="cs-group">
+            <legend>WS SERVER</legend>
+            <div class="row-2col">
+              <div class="field">
+                <label class="dim-lbl" for="host">Host:</label>
+                <input class="cs-input" type="text" id="host" />
+              </div>
+              <div class="field port-field">
+                <label class="dim-lbl" for="port">Port:</label>
+                <input class="cs-input" type="number" id="port" min="1" max="65535" />
+              </div>
+            </div>
+            <div id="port-error" class="error-lbl" hidden></div>
+          </fieldset>
+
+          <fieldset class="cs-group">
+            <legend>AUTHENTICATION</legend>
+            <label class="dim-lbl" for="auth-token">Auth Token:</label>
+            <input class="cs-input full-w" type="password" id="auth-token" autocomplete="off" />
+            <div class="btn-row mt6">
+              <button class="cs-btn token-btn" id="show-token">SHOW/HIDE TOKEN</button>
+              <button class="cs-btn token-btn" id="copy-token">COPY TOKEN</button>
+              <button class="cs-btn token-btn" id="regen-token">REGENERATE TOKEN</button>
+            </div>
+          </fieldset>
+
+          <fieldset class="cs-group">
+            <legend>APPLICATION</legend>
+            <div class="cs-checkbox">
+              <input type="checkbox" id="autostart" />
+              <label class="cs-checkbox__label" for="autostart" id="autostart-label">Start with Windows</label>
+            </div>
+            <div class="field mt8">
+              <label class="dim-lbl" for="analog-keyboard">Analog keyboard:</label>
+              <select class="cs-input" id="analog-keyboard">
+                <option value="">Disabled</option>
+                <option value="auto">Auto-detect</option>
+                <option value="wooting">Wooting</option>
+                <option value="razer">Razer Huntsman Analog</option>
+                <option value="drunkdeer">DrunkDeer</option>
+                <option value="keychron">Keychron / Lemokey HE</option>
+                <option value="nuphy">NuPhy</option>
+                <option value="madlions">Madlions</option>
+                <option value="bytech">Redragon</option>
+              </select>
+            </div>
+          </fieldset>
+
+          <fieldset class="cs-group" id="linux-devices" hidden>
+            <legend>INPUT DEVICES</legend>
+            <div id="linux-perm-warning" class="error-lbl" hidden></div>
+            <div class="field mt6">
+              <label class="dim-lbl" for="kbd-device">Keyboard device:</label>
+              <select class="cs-input full-w" id="kbd-device">
+                <option value="">Auto-detect</option>
+              </select>
+            </div>
+            <div class="field mt8">
+              <label class="dim-lbl" for="mouse-device">Mouse device:</label>
+              <select class="cs-input full-w" id="mouse-device">
+                <option value="">Auto-detect</option>
+              </select>
+            </div>
+          </fieldset>
+
+          <fieldset class="cs-group about-group">
+            <legend>ABOUT</legend>
+            <div class="about-inner">
+              <div class="about-links">
+                <span id="version-label" class="dim-lbl"></span>
+                <a class="accent-link" id="link-github" href="#">GitHub</a>
+                <a class="accent-link" id="link-twitter" href="#">Twitter</a>
+                <a class="accent-link" id="link-website" href="#">girlglock.com</a>
+              </div>
+              <img src="assets/steamhappy.gif" class="about-gif" alt="" />
+            </div>
+          </fieldset>
+
+        </div>
+
+        <!-- right -->
+        <div class="col">
+          <fieldset class="cs-group">
+            <legend>CONNECTED CLIENTS</legend>
+            <div class="clients-list" id="clients-list">
+              <span class="dim-lbl">no clients connected</span>
+            </div>
+          </fieldset>
+          
+          <fieldset class="cs-group">
+            <legend>LOCAL HTTP SERVER (for dual pc usage)</legend>
+            <div class="cs-checkbox mt6">
+              <input type="checkbox" id="http-enabled" />
+              <label class="cs-checkbox__label" for="http-enabled">Enable HTTP server</label>
+            </div>
+            <div class="row-2col mt6">
+              <div class="field">
+                <label class="dim-lbl" for="http-host">Host:</label>
+                <input class="cs-input" type="text" id="http-host" readonly />
+              </div>
+              <div class="field port-field">
+                <label class="dim-lbl" for="http-port">Port:</label>
+                <input class="cs-input" type="number" id="http-port" min="1" max="65535" />
+              </div>
+            </div>
+            <button class="cs-btn full-w mt6" id="open-http-btn">OPEN IN BROWSER</button>
+          </fieldset>
+
+          <fieldset class="cs-group whitelist-group">
+            <legend>KEY WHITELIST</legend>
+            <p class="dim-lbl hint-text">Click ADD KEY then press the key (or mouse button) you want to add.<br>Empty
+              list means all keys are allowed.</p>
+            <button class="cs-btn full-w mt6 add-key-btn" id="add-key-btn">ADD KEY</button>
+            <div class="key-list" id="key-list"></div>
+            <div class="cs-checkbox mt8">
+              <input type="checkbox" id="send-mouse-move" />
+              <label class="cs-checkbox__label" for="send-mouse-move">Enable mouse movement</label>
+            </div>
+          </fieldset>
+
+        </div>
+
+      </div>
+
+
+      <div class="footer-row">
+        <button class="cs-btn" style="min-width: 100px;" id="cancel-btn">CANCEL</button>
+        <button class="cs-btn" style="min-width: 100px;" id="save-btn">SAVE</button>
+        <span id="save-msg"></span>
+      </div>
+    </div>
+
+    <div id="update-progress-modal" class="modal-overlay" hidden>
+      <div class="modal-box">
+        <p class="modal-msg" id="update-progress-status">downloading...</p>
+        <div class="update-progress-track">
+          <div class="update-progress-fill" id="update-progress-fill"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="discard-modal" class="modal-overlay" hidden>
+      <div class="modal-box">
+        <p class="modal-msg">you have unsaved changes.<br>discard them?</p>
+        <div class="modal-btns">
+          <button class="cs-btn" id="modal-keep-btn">KEEP EDITING</button>
+          <button class="cs-btn modal-discard-btn" id="modal-discard-btn">DISCARD</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</body>
+
+</html>

@@ -403,7 +403,7 @@ class SettingsEditor(QMainWindow):
             self.linux_mouse_combo = InstantTooltipComboBox()
             self.linux_mouse_combo.setToolTip(
                 "Select the evdev mouse device for clicks, scroll, and mouse_pad movement.\n"
-                "Linux has no RawInputBuffer API — this reads directly from /dev/input.\n"
+                "Linux has no RawInputBuffer API, this reads directly from /dev/input.\n"
                 "Pick the specific hardware device to avoid double counting."
             )
             self._populate_linux_mouse_combo()
