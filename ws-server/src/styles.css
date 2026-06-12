@@ -1,3 +1,5 @@
+[hidden] { display: none !important; }
+
 html, body {
   height: 100%;
   overflow: hidden;
@@ -49,7 +51,7 @@ fieldset > legend + .field-row-stacked {
   flex-shrink: 0;
   flex-wrap: wrap;
 }
-.update-bar[hidden] { display: none; }
+
 .update-bar-btns { display: flex; align-items: center; gap: 4px; margin-left: auto; }
 
 .modal-overlay .window {
@@ -107,7 +109,7 @@ fieldset > legend + .field-row-stacked {
   justify-content: center;
   z-index: 100;
 }
-.modal-overlay[hidden] { display: none; }
+
 #modal-discard-btn { color: #c00000; }
 
 .update-popup-content {
