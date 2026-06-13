@@ -45,7 +45,8 @@ const modalDiscardBtn = document.getElementById("modal-discard-btn");
 
 const themeToggle = document.getElementById("theme-toggle");
 const zuneLink = document.querySelector('link[href*="XP-ZUNE"]');
-let themeMode = 'light';
+const systemTheme = () => window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+let themeMode = systemTheme();
 function applyThemeMode(mode) {
   themeMode = mode;
   document.documentElement.setAttribute('data-theme', mode);
@@ -205,6 +206,7 @@ function readConfig() {
     linux_evdev_keyboard_device: kbdEl ? kbdEl.value : (originalConfig?.linux_evdev_keyboard_device ?? ""),
     linux_raw_mouse_device: mouseDevEl ? mouseDevEl.value : (originalConfig?.linux_raw_mouse_device ?? ""),
     dismissed_update_versions: originalConfig?.dismissed_update_versions ?? [],
+    theme: originalConfig?.theme ?? null,
   };
 }
 
@@ -504,7 +506,7 @@ async function init() {
     vl.dataset.version = version;
     vl.innerHTML = `Input-Overlay WebSocket Server | Version: ${version}<br>(latest)`;
     document.getElementById("status-version").textContent = `v${version}`;
-    applyThemeMode(cfg.theme || 'light');
+    applyThemeMode(cfg.theme ?? systemTheme());
     applyConfig(cfg);
     applyStatus(status);
     autostartEl.checked = autostart;
