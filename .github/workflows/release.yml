@@ -84,13 +84,26 @@ jobs:
             ## **linux setup (experimental):**
 
             -   download `input-overlay-ws-linux.zip`
+            -   **runtime dependency:** the ws server requires WebKitGTK 4.1. install it if not already present:
+
+                ```bash
+                # debian / ubuntu
+                sudo apt-get install libwebkit2gtk-4.1-0
+
+                # fedora
+                sudo dnf install webkit2gtk4.1
+
+                # arch
+                sudo pacman -S webkit2gtk-4.1
+                ```
+
             -   **linux perms needed:** keyboard/mouse capture and analog devices need access to `/dev/input`, `/dev/hidraw`, and `/dev/bus/usb`:
 
                 ```bash
                 # for general inputs
                 sudo usermod -aG input $USER
-                
-                # for analogsense support
+
+                # for analog support
                 printf '%s\n' \
                   'KERNEL=="hidraw*", SUBSYSTEM=="hidraw", MODE="0660", GROUP="input"' \
                   'SUBSYSTEM=="usb", ATTRS{idVendor}=="31e3", MODE="0660", GROUP="input"' \
@@ -102,17 +115,14 @@ jobs:
                   'SUBSYSTEM=="usb", ATTRS{idVendor}=="362d", MODE="0660", GROUP="input"' \
                   'SUBSYSTEM=="usb", ATTRS{idVendor}=="373b", MODE="0660", GROUP="input"' \
                   'SUBSYSTEM=="usb", ATTRS{idVendor}=="372e", MODE="0660", GROUP="input"' \
-                  | sudo tee /etc/udev/rules.d/99-analogsense.rules
-                
+                  | sudo tee /etc/udev/rules.d/99-analog.rules
+
                 sudo udevadm control --reload-rules && sudo udevadm trigger
                 ```
-            -  **restart** for the group change and usb rule to take effect
+            -  **restart** for the group change and udev rule to take effect
             -   unzip and run `./input-overlay-ws`
+            -   go to **settings -> devices** to pick your keyboard and mouse evdev devices
             -   left-click or right-click the tray icon for settings
-            -   if the tray icon doesn't appear, a control window will open automatically instead
-
-            > [!NOTICE]
-            > some distros might require you installing libhid and its dependencies manually for analogsense support
 
             ## **checksum:**
 
@@ -130,7 +140,7 @@ jobs:
             ---
             > [!WARNING]
             > all builds are created via github actions directly from the repo sources
-            > the ws server migh might occasionally trigger a false positive on windows defender due to it not being signed and how we handle rawinputbuffer reads via an "invisible background window"
+            > the ws server might occasionally trigger a false positive on windows defender due to it not being signed and how we handle rawinputbuffer reads via an "invisible background window"
             > alternatively you can build the ws server yourself. see the readme for instructions :p
             
             ${{ steps.prev_tag.outputs.tag != '' && format('[CHANGELOG]({0}/{1}/compare/{2}...{3})', github.server_url, github.repository, steps.prev_tag.outputs.tag, github.ref_name) || 'First release.' }}
