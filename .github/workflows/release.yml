@@ -68,11 +68,11 @@ jobs:
           body: |
             ## input-overlay websocket server ${{ github.ref_name }}
 
-            # **patchnotes:**
+            # **Patchnotes:**
 
             -
 
-
+            # **Setup:**
             <details>
             <summary><b>windows setup</b></summary>
             <br>
@@ -146,7 +146,7 @@ jobs:
 
             </details>
 
-            ## **checksum:**
+            # **Checksum:**
 
             | file | sha256 |
             |------|--------|
