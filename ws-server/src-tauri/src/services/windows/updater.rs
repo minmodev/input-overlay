@@ -127,9 +127,8 @@ pub async fn download_and_schedule(
         let chunk = chunk.map_err(|e| e.to_string())?;
         downloaded += chunk.len() as u64;
         zip_bytes.extend_from_slice(&chunk);
-        if total > 0 {
-            let pct = 5 + (downloaded * 65 / total) as u32;
-            emit(pct, &format!("downloading... {}kb / {}kb", downloaded / 1024, total / 1024));
+        if let Some(div) = (downloaded * 65).checked_div(total) {
+            emit(5 + div as u32, &format!("downloading... {}kb / {}kb", downloaded / 1024, total / 1024));
         }
     }
 

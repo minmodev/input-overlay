@@ -36,7 +36,8 @@ hidapi = "2"
 hidapi = { version = "2", features = ["linux-static-hidraw"] }
 evdev = "0.12"
 libc = "0.2"
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls-native-roots"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls-native-roots"] }
+zip = { version = "2", default-features = false, features = ["deflate"] }
 
 [target.'cfg(windows)'.dependencies]
 reqwest = { version = "0.12", features = ["json", "stream"] }

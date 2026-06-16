@@ -52,17 +52,17 @@ fn is_allowed(event: &InputEvent, cfg: &Config) -> bool {
                 return true;
             }
             mouse_scroll_name(*rotation)
-                .map_or(false, |n| cfg.key_whitelist.contains(&n.to_string()))
+                .is_some_and(|n| cfg.key_whitelist.contains(&n.to_string()))
         }
         InputEvent::MouseButton { button, .. } => mouse_button_name(*button)
-            .map_or(false, |n| cfg.key_whitelist.contains(&n.to_string())),
+            .is_some_and(|n| cfg.key_whitelist.contains(&n.to_string())),
         InputEvent::KeyPress { rawcode } | InputEvent::KeyRelease { rawcode } => {
             vk_to_key_name(*rawcode)
-                .map_or(false, |n| cfg.key_whitelist.contains(&n.to_string()))
+                .is_some_and(|n| cfg.key_whitelist.contains(&n.to_string()))
         }
         InputEvent::AnalogDepth { rawcode, .. } => {
             vk_to_key_name(*rawcode)
-                .map_or(false, |n| cfg.key_whitelist.contains(&n.to_string()))
+                .is_some_and(|n| cfg.key_whitelist.contains(&n.to_string()))
         }
     }
 }

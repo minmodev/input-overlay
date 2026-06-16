@@ -366,10 +366,9 @@ fn run_drunkdeer(dev: &hidapi::HidDevice, tx: &UnboundedSender<InputEvent>, stop
                     cur_vks.clear();
                 }
 
-                for i in (off + 4)..n {
-                    let value = buf[i];
+                for (pos, &value) in buf[(off + 4)..n].iter().enumerate() {
                     if value != 0 {
-                        let idx = n_pkt as usize * 59 + (i - off - 4);
+                        let idx = n_pkt as usize * 59 + pos;
                         if let Some(&hid) = DRUNKDEER.get(idx) {
                             if hid != 0 {
                                 if let Some(vk) = hid_to_vk(hid) {

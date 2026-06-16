@@ -81,7 +81,7 @@ impl RawInputThread {
 
     #[allow(dead_code)]
     pub fn is_alive(&self) -> bool {
-        self.handle.as_ref().map_or(false, |h| !h.is_finished())
+        self.handle.as_ref().is_some_and(|h| !h.is_finished())
     }
 }
 
@@ -120,7 +120,7 @@ fn run_raw_input(
             windows::core::w!("00000409"),
             windows::Win32::UI::Input::KeyboardAndMouse::ACTIVATE_KEYBOARD_LAYOUT_FLAGS(0),
         )
-        .unwrap_or_else(|_| windows::Win32::UI::Input::KeyboardAndMouse::HKL(std::ptr::null_mut()));
+        .unwrap_or(windows::Win32::UI::Input::KeyboardAndMouse::HKL(std::ptr::null_mut()));
 
         let accum_dx: Arc<Mutex<i32>> = Arc::new(Mutex::new(0));
         let accum_dy: Arc<Mutex<i32>> = Arc::new(Mutex::new(0));

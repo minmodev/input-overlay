@@ -82,7 +82,7 @@ fn create_task(exe_path: &std::path::Path) -> bool {
         ])
         .creation_flags(0x08000000)
         .status()
-        .map_or(false, |s| s.success());
+        .is_ok_and(|s| s.success());
 
     let _ = std::fs::remove_file(&tmp_path);
     ok
@@ -95,5 +95,5 @@ fn delete_task() -> bool {
         .args(["/Delete", "/F", "/TN", TASK_NAME])
         .creation_flags(0x08000000)
         .status()
-        .map_or(false, |s| s.success())
+        .is_ok_and(|s| s.success())
 }
