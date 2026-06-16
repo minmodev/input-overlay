@@ -8,24 +8,11 @@ use tauri::Emitter;
 
 use crate::services::updater::{download_bytes, ProgressPayload, UpdateInfo};
 
-const ASSET_APPIMAGE: &str = "input-overlay-ws-linux.AppImage";
-const ASSET_BINARY: &str = "input-overlay-ws-linux-binary.zip";
+const ASSET_NAME: &str = "input-overlay-ws-linux.zip";
 const BINARY_NAME: &str = "input-overlay-ws";
 
-fn running_as_appimage() -> bool {
-    std::env::var("APPIMAGE").is_ok()
-}
-
-fn asset_name() -> &'static str {
-    if running_as_appimage() {
-        ASSET_APPIMAGE
-    } else {
-        ASSET_BINARY
-    }
-}
-
 pub async fn check(current_version: &str, dismissed: &[String]) -> Option<UpdateInfo> {
-    crate::services::updater::check(current_version, dismissed, asset_name()).await
+    crate::services::updater::check(current_version, dismissed, ASSET_NAME).await
 }
 
 pub async fn download_and_apply(download_url: &str, version: &str, app: &tauri::AppHandle) -> Result<(), String> {
@@ -43,19 +30,8 @@ pub async fn download_and_apply(download_url: &str, version: &str, app: &tauri::
 
     emit(72, "installing...");
 
-    let target_path: PathBuf = if running_as_appimage() {
-        std::env::var("APPIMAGE")
-            .map(PathBuf::from)
-            .map_err(|_| "APPIMAGE env var missing".to_string())?
-    } else {
-        std::env::current_exe().map_err(|e| e.to_string())?
-    };
-
-    let new_bytes = if running_as_appimage() {
-        bytes
-    } else {
-        extract_binary_from_zip(&bytes)?
-    };
+    let target_path: PathBuf = std::env::current_exe().map_err(|e| e.to_string())?;
+    let new_bytes = extract_binary_from_zip(&bytes)?;
 
     let tmp_path = target_path.with_extension("update_tmp");
     std::fs::write(&tmp_path, &new_bytes).map_err(|e| e.to_string())?;
