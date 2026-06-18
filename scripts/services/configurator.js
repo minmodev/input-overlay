@@ -10,6 +10,135 @@ function flashBtn(btn, label, original, ms = 2000) {
     setTimeout(() => { btn.textContent = original; btn.classList.remove("copied"); }, ms);
 }
 
+export function convertLegacyRows(settings, layoutParser) {
+    const U = 50, GAP = 8 * (parseFloat(settings.gapmodifier) / 100 || 1);
+    const defs = [];
+
+    const parseUStr = (uStr) => {
+        if (!uStr) return 1;
+        const m = uStr.match(/^u(\d+)(?:-(\d+))?$/);
+        if (!m) return 1;
+        const dec = m[2] ? (m[2].length === 1 ? parseInt(m[2]) * 10 : parseInt(m[2])) : 0;
+        return parseInt(m[1]) + dec / 100;
+    };
+
+    const LEGACY_WIDTH_U = { "wide": 1.5, "extra-wide": 2, "super-wide": 3.4 };
+    const parseWFromClass = (cls) => {
+        if (!cls) return 1;
+        for (const t of cls.split(/\s+/)) {
+            if (LEGACY_WIDTH_U[t] !== undefined) return LEGACY_WIDTH_U[t];
+            if (/^u\d/.test(t)) return parseUStr(t);
+            const wm = t.match(/^w-(\d+)(?:-(\d+))?u$/);
+            if (wm) {
+                const dec = wm[2] ? (wm[2].length === 1 ? parseInt(wm[2]) * 10 : parseInt(wm[2])) : 0;
+                return parseInt(wm[1]) + dec / 100;
+            }
+        }
+        return 1;
+    };
+
+    const convertRow = (items, yOffset) => {
+        let xOffset = 0;
+        for (const item of items) {
+            if (item.type === "dummy" || item.type === "br") continue;
+
+            if (item.type === "mouse_pad") {
+                const wU = parseUStr(item.widthClass);
+                const hU = parseUStr(item.heightClass);
+                const anchor = item.anchor || "a-tl";
+                const anchorH = anchor[3], anchorV = anchor[2];
+                //ICIF:
+                //legacy row system used marginLeft:-GAP (right) and marginLeft:-GAP/2 (center) to pull
+                //the no width container back relative to its pos
+                const gapShift = anchorH === "r" ? GAP : anchorH === "c" ? GAP / 2 : 0;
+                const padX = anchorH === "r" ? xOffset - gapShift - wU * U : anchorH === "c" ? xOffset - gapShift - (wU * U) / 2 : xOffset;
+                const padY = anchorV === "b" ? yOffset + U - hU * U : anchorV === "c" ? yOffset + (U - hU * U) / 2 : yOffset;
+                defs.push({ type: "mouse_pad", w: wU, h: hU, x: padX, y: padY });
+                continue;
+            }
+
+            if (item.type === "gp_joystick") {
+                const wU = parseUStr(item.widthClass);
+                const hU = parseUStr(item.heightClass || item.widthClass);
+                const type = item.stickId === "gp_ls" ? "gp_joystick_ls" : "gp_joystick_rs";
+                const anchor = item.anchor || "a-tl";
+                const anchorH = anchor[3], anchorV = anchor[2];
+                const joyX = anchorH === "r" ? xOffset - wU * U : anchorH === "c" ? xOffset - (wU * U) / 2 : xOffset;
+                const joyY = anchorV === "b" ? yOffset + U - hU * U : anchorV === "c" ? yOffset + (U - hU * U) / 2 : yOffset;
+                defs.push({ type, w: wU, h: hU, x: joyX, y: joyY });
+                continue;
+            }
+
+            const isInvis = item.class?.includes("invisible") || item.label === "invis";
+            if (isInvis) {
+                const wU = parseWFromClass(item.class?.replace("invisible", "").trim()) || 1;
+                xOffset += wU * U + GAP;
+                continue;
+            }
+
+            const w = parseWFromClass(item.class);
+            //legacy used { width: 70px } on the scroller
+            //u1 gives 50px; u1-0/u1-00 dont have any width syntax so fall back to 70px
+            const scrollW = (() => {
+                const token = item.class?.split(/\s+/).find(t => /^u\d/.test(t));
+                if (!token) return 70 / U;
+                const m = token.match(/^u(\d+)(?:-(\d+))?$/);
+                if (!m || (m[2] && parseInt(m[2]) === 0)) return 70 / U;
+                return w;
+            })();
+            let def;
+
+            if (item.type === "scroller") {
+                def = { type: "scroller", labels: [...(item.labels || [])], w: scrollW, h: 1, x: xOffset, y: yOffset };
+            } else if (item.type === "scroll_updown") {
+                def = { type: "scroll_updown", labels: [...(item.labels || [])], w: scrollW, h: 1, x: xOffset, y: yOffset };
+            } else if (item.type === "scroll_up") {
+                def = { type: "scroll_up", label: item.label ?? "", w: scrollW, h: 1, x: xOffset, y: yOffset };
+            } else if (item.type === "scroll_down") {
+                def = { type: "scroll_down", label: item.label ?? "", w: scrollW, h: 1, x: xOffset, y: yOffset };
+            } else if (item.type === "mouse_side") {
+                def = { type: "mouse_side", labels: [...(item.labels || [])], w, h: 1, x: xOffset, y: yOffset };
+            } else {
+                const keyType = item.keys?.length > 1 ? item.keys.join("|") : (item.key ?? item.type);
+                def = { type: keyType, label: item.label ?? "", w, h: 1, x: xOffset, y: yOffset };
+            }
+
+            defs.push(def);
+            xOffset += def.w * U + GAP;
+        }
+    };
+
+    const rowKeys = ["customLayoutRow1", "customLayoutRow2", "customLayoutRow3", "customLayoutRow4", "customLayoutRow5"];
+    let yOffset = 0;
+
+    for (const key of rowKeys) {
+        if (!settings[key]) continue;
+        const rows = layoutParser.splitByBr(layoutParser.parseCustomLayoutInput(settings[key]));
+        for (const row of rows) {
+            if (!row.length) continue;
+            convertRow(row, yOffset);
+            yOffset += U + GAP;
+        }
+    }
+
+    if (settings.customLayoutMouse) {
+        const rows = layoutParser.splitByBr(layoutParser.parseCustomLayoutInput(settings.customLayoutMouse));
+        for (const row of rows) {
+            if (!row.length) continue;
+            convertRow(row, yOffset);
+            yOffset += U + GAP;
+        }
+    }
+
+    if (defs.length) {
+        const minX = Math.min(...defs.map(d => d.x));
+        const minY = Math.min(...defs.map(d => d.y));
+        if (minX !== 0 || minY !== 0) defs.forEach(d => { d.x -= minX; d.y -= minY; });
+    }
+
+    return defs;
+}
+
 export class ConfiguratorMode {
     constructor(utils, urlManager, layoutParser, visualizer, keyLayoutParser = null) {
         this.utils = utils;
@@ -1241,128 +1370,9 @@ export class ConfiguratorMode {
         this._commitKeyLayoutDefs();
     }
 
+    //lazy for now..
     _convertRowsToKeyLayout(settings) {
-        const U = 50, GAP = 8 * (parseFloat(settings.gapmodifier) / 100 || 1);
-        const defs = [];
-
-        const parseUStr = (uStr) => {
-            if (!uStr) return 1;
-            const m = uStr.match(/^u(\d+)(?:-(\d+))?$/);
-            if (!m) return 1;
-            const dec = m[2] ? (m[2].length === 1 ? parseInt(m[2]) * 10 : parseInt(m[2])) : 0;
-            return parseInt(m[1]) + dec / 100;
-        };
-
-        const LEGACY_WIDTH_U = { "wide": 1.5, "extra-wide": 2, "super-wide": 3.4 };
-        const parseWFromClass = (cls) => {
-            if (!cls) return 1;
-            for (const t of cls.split(/\s+/)) {
-                if (LEGACY_WIDTH_U[t] !== undefined) return LEGACY_WIDTH_U[t];
-                if (/^u\d/.test(t)) return parseUStr(t);
-                const wm = t.match(/^w-(\d+)(?:-(\d+))?u$/);
-                if (wm) {
-                    const dec = wm[2] ? (wm[2].length === 1 ? parseInt(wm[2]) * 10 : parseInt(wm[2])) : 0;
-                    return parseInt(wm[1]) + dec / 100;
-                }
-            }
-            return 1;
-        };
-
-        const convertRow = (items, yOffset) => {
-            let xOffset = 0;
-            for (const item of items) {
-                if (item.type === "dummy" || item.type === "br") continue;
-
-                if (item.type === "mouse_pad") {
-                    const wU = parseUStr(item.widthClass);
-                    const hU = parseUStr(item.heightClass);
-                    const anchor = item.anchor || "a-tl";
-                    const anchorH = anchor[3], anchorV = anchor[2];
-                    //ICIF:
-                    //legacy row system used marginLeft:-GAP (right) and marginLeft:-GAP/2 (center) to pull
-                    //the no width container back relative to its pos
-                    const gapShift = anchorH === "r" ? GAP : anchorH === "c" ? GAP / 2 : 0;
-                    const padX = anchorH === "r" ? xOffset - gapShift - wU * U : anchorH === "c" ? xOffset - gapShift - (wU * U) / 2 : xOffset;
-                    const padY = anchorV === "b" ? yOffset + U - hU * U : anchorV === "c" ? yOffset + (U - hU * U) / 2 : yOffset;
-                    defs.push({ type: "mouse_pad", w: wU, h: hU, x: padX, y: padY });
-                    continue;
-                }
-
-                if (item.type === "gp_joystick") {
-                    const wU = parseUStr(item.widthClass);
-                    const hU = parseUStr(item.heightClass || item.widthClass);
-                    const type = item.stickId === "gp_ls" ? "gp_joystick_ls" : "gp_joystick_rs";
-                    const anchor = item.anchor || "a-tl";
-                    const anchorH = anchor[3], anchorV = anchor[2];
-                    const joyX = anchorH === "r" ? xOffset - wU * U : anchorH === "c" ? xOffset - (wU * U) / 2 : xOffset;
-                    const joyY = anchorV === "b" ? yOffset + U - hU * U : anchorV === "c" ? yOffset + (U - hU * U) / 2 : yOffset;
-                    defs.push({ type, w: wU, h: hU, x: joyX, y: joyY });
-                    continue;
-                }
-
-                const isInvis = item.class?.includes("invisible") || item.label === "invis";
-                if (isInvis) {
-                    const wU = parseWFromClass(item.class?.replace("invisible", "").trim()) || 1;
-                    xOffset += wU * U + GAP;
-                    continue;
-                }
-
-                const w = parseWFromClass(item.class);
-                //legacy used { width: 70px } on the scroller
-                //u1 gives 50px; u1-0/u1-00 dont have any width syntax so fall back to 70px
-                const scrollW = (() => {
-                    const token = item.class?.split(/\s+/).find(t => /^u\d/.test(t));
-                    if (!token) return 70 / U;
-                    const m = token.match(/^u(\d+)(?:-(\d+))?$/);
-                    if (!m || (m[2] && parseInt(m[2]) === 0)) return 70 / U;
-                    return w;
-                })();
-                let def;
-
-                if (item.type === "scroller") {
-                    def = { type: "scroller", labels: [...(item.labels || [])], w: scrollW, h: 1, x: xOffset, y: yOffset };
-                } else if (item.type === "scroll_updown") {
-                    def = { type: "scroll_updown", labels: [...(item.labels || [])], w: scrollW, h: 1, x: xOffset, y: yOffset };
-                } else if (item.type === "scroll_up") {
-                    def = { type: "scroll_up", label: item.label ?? "", w: scrollW, h: 1, x: xOffset, y: yOffset };
-                } else if (item.type === "scroll_down") {
-                    def = { type: "scroll_down", label: item.label ?? "", w: scrollW, h: 1, x: xOffset, y: yOffset };
-                } else if (item.type === "mouse_side") {
-                    def = { type: "mouse_side", labels: [...(item.labels || [])], w, h: 1, x: xOffset, y: yOffset };
-                } else {
-                    const keyType = item.keys?.length > 1 ? item.keys.join("|") : (item.key ?? item.type);
-                    def = { type: keyType, label: item.label ?? "", w, h: 1, x: xOffset, y: yOffset };
-                }
-
-                defs.push(def);
-                xOffset += def.w * U + GAP;
-            }
-        };
-
-        const rowKeys = ["customLayoutRow1", "customLayoutRow2", "customLayoutRow3", "customLayoutRow4", "customLayoutRow5"];
-        let yOffset = 0;
-
-        for (const key of rowKeys) {
-            if (!settings[key]) continue;
-            const rows = this.layoutParser.splitByBr(this.layoutParser.parseCustomLayoutInput(settings[key]));
-            for (const row of rows) {
-                if (!row.length) continue;
-                convertRow(row, yOffset);
-                yOffset += U + GAP;
-            }
-        }
-
-        if (settings.customLayoutMouse) {
-            const rows = this.layoutParser.splitByBr(this.layoutParser.parseCustomLayoutInput(settings.customLayoutMouse));
-            for (const row of rows) {
-                if (!row.length) continue;
-                convertRow(row, yOffset);
-                yOffset += U + GAP;
-            }
-        }
-
-        this._centerLayoutDefs(defs);
-        return defs;
+        return convertLegacyRows(settings, this.layoutParser);
     }
 
     _buildDefaultKeyLayoutDefs() {
@@ -1641,7 +1651,7 @@ export class ConfiguratorMode {
             del.style.position = "absolute";
 
             if (isCanvas) { del.style.top = "4px"; del.style.right = "4px"; }
-            
+
             del.textContent = "x";
             del.title = "remove";
             del.addEventListener("pointerdown", (e) => {

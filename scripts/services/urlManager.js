@@ -183,6 +183,12 @@ export class UrlManager {
 
                     wsauth: decompressedParams.get("wsauth") || "",
                     keyLayout: decompressedParams.get("keyLayout") || this.urlParams.get("keyLayout") || null,
+                    customLayoutRow1: decompressedParams.get("customLayoutRow1") || null,
+                    customLayoutRow2: decompressedParams.get("customLayoutRow2") || null,
+                    customLayoutRow3: decompressedParams.get("customLayoutRow3") || null,
+                    customLayoutRow4: decompressedParams.get("customLayoutRow4") || null,
+                    customLayoutRow5: decompressedParams.get("customLayoutRow5") || null,
+                    customLayoutMouse: decompressedParams.get("customLayoutMouse") || null,
                 };
             }
         }
@@ -226,6 +232,12 @@ export class UrlManager {
 
             wsauth: params.get("wsauth") || "",
             keyLayout: this.urlParams.get("keyLayout") || null,
+            customLayoutRow1: params.get("customLayoutRow1") || null,
+            customLayoutRow2: params.get("customLayoutRow2") || null,
+            customLayoutRow3: params.get("customLayoutRow3") || null,
+            customLayoutRow4: params.get("customLayoutRow4") || null,
+            customLayoutRow5: params.get("customLayoutRow5") || null,
+            customLayoutMouse: params.get("customLayoutMouse") || null,
         };
     }
 }

@@ -1,6 +1,7 @@
 //guh
 import { WebSocketManager } from "./webSocketManager.js";
 import { GamepadManager } from "./gamepadManager.js";
+import { convertLegacyRows } from "./configurator.js";
 
 export class OverlayMode {
     constructor(utils, urlManager, layoutParser, visualizer, keyLayoutParser = null) {
@@ -13,6 +14,15 @@ export class OverlayMode {
         const statusEl = document.getElementById("status");
 
         const settings = this.urlManager.getOverlaySettings();
+
+        if (!settings.keyLayout && keyLayoutParser && layoutParser) {
+            const hasLegacy = ["customLayoutRow1", "customLayoutRow2", "customLayoutRow3",
+                "customLayoutRow4", "customLayoutRow5", "customLayoutMouse"].some(k => settings[k]);
+            if (hasLegacy) {
+                const defs = convertLegacyRows(settings, layoutParser);
+                if (defs.length) settings.keyLayout = JSON.stringify(keyLayoutParser.serializeAll(defs));
+            }
+        }
 
         requestAnimationFrame(() => {
             this.visualizer.applyStyles(settings);
