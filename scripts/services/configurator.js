@@ -1730,11 +1730,11 @@ export class ConfiguratorMode {
     }
 
     _getPreviewContentScale() {
-        const wrapper = document.querySelector("#preview-wrapper > div");
-        if (!wrapper) return 0.75;
-        const s = getComputedStyle(wrapper).scale;
-        const n = parseFloat(s);
-        return isNaN(n) || n <= 0 ? 0.75 : n;
+        if (this._previewZoomSlider) {
+            const z = parseInt(this._previewZoomSlider.value) / 100;
+            if (z > 0) return z;
+        }
+        return 0.75;
     }
 
     _onKlPointerMove(e) {
