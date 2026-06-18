@@ -1,16 +1,16 @@
 //me when she when we
 
 export const GP_BUTTON_MAP = {
-    0:  "gp_a",
-    1:  "gp_b",
-    2:  "gp_x",
-    3:  "gp_y",
-    4:  "gp_lb",
-    5:  "gp_rb",
-    6:  "gp_lt",
-    7:  "gp_rt",
-    8:  "gp_select",
-    9:  "gp_start",
+    0: "gp_a",
+    1: "gp_b",
+    2: "gp_x",
+    3: "gp_y",
+    4: "gp_lb",
+    5: "gp_rb",
+    6: "gp_lt",
+    7: "gp_rt",
+    8: "gp_select",
+    9: "gp_start",
     10: "gp_ls",
     11: "gp_rs",
     12: "gp_up",
@@ -36,12 +36,12 @@ export class GamepadManager {
         this.visualizer = visualizer;
         this._rafId = null;
         this._prevButtonState = {};
-        this._prevAxisState   = {};
-        this._stickValues     = {};
+        this._prevAxisState = {};
+        this._stickValues = {};
 
         this._loop = this._loop.bind(this);
 
-        window.addEventListener("gamepadconnected",    e => this._onConnected(e));
+        window.addEventListener("gamepadconnected", e => this._onConnected(e));
         window.addEventListener("gamepaddisconnected", e => this._onDisconnected(e));
         this._startLoop();
         setTimeout(window.setDynamicScale, 100);
@@ -88,7 +88,7 @@ export class GamepadManager {
     _processPad(pad) {
         const idx = pad.index;
         if (!this._prevButtonState[idx]) this._prevButtonState[idx] = [];
-        if (!this._prevAxisState[idx])   this._prevAxisState[idx]   = [];
+        if (!this._prevAxisState[idx]) this._prevAxisState[idx] = [];
 
         pad.buttons.forEach((btn, i) => {
             const name = GP_BUTTON_MAP[i];
@@ -180,7 +180,7 @@ export class GamepadManager {
         });
         viz.activeGamepadButtons?.clear();
         this._prevButtonState = {};
-        this._prevAxisState   = {};
-        this._stickValues     = {};
+        this._prevAxisState = {};
+        this._stickValues = {};
     }
 }

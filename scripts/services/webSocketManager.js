@@ -251,7 +251,6 @@ export class WebSocketManager {
 
     _handleAnalogDepth(event) {
         if (!this.visualizer.previewElements) return;
-        if (!this.visualizer.analogMode) this.visualizer.analogMode = true;
 
         const info = this._getMappedKeyInfo(event);
         if (!info?.name?.startsWith("key_")) return;
@@ -270,6 +269,9 @@ export class WebSocketManager {
                     el.classList.remove("active", "analog-key");
                     viz.activeElements.delete(el);
                     el.style.transform = "";
+                    el.style.removeProperty("background-image");
+                    el.style.removeProperty("border-color");
+                    el.style.removeProperty("box-shadow");
                     el.querySelector(".key-label-primary")?.style.removeProperty("color");
                     const inv = el.querySelector(".key-label-inverted");
                     if (inv) inv.style.clipPath = "inset(100% 0 0 0)";

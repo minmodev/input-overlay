@@ -1,6 +1,8 @@
 //guh
-import { BROWSER_BUTTON_TO_KEY_NAME, BROWSER_CODE_TO_KEY_NAME, COLOR_PICKERS, DEFAULT_LAYOUT_STRINGS, HID_TO_KEY_NAME } from "../consts.js";
+import { BROWSER_BUTTON_TO_KEY_NAME, BROWSER_CODE_TO_KEY_NAME, COLOR_PICKERS, HID_TO_KEY_NAME } from "../consts.js";
 import { GamepadManager } from "./gamepadManager.js";
+
+const LAYOUT_ORIGIN = { x: 0, y: 0 };
 
 function flashBtn(btn, label, original, ms = 2000) {
     btn.textContent = label;
@@ -9,21 +11,25 @@ function flashBtn(btn, label, original, ms = 2000) {
 }
 
 export class ConfiguratorMode {
-    constructor(utils, urlManager, layoutParser, visualizer) {
+    constructor(utils, urlManager, layoutParser, visualizer, keyLayoutParser = null) {
         this.utils = utils;
         this.urlManager = urlManager;
         this.layoutParser = layoutParser;
         this.visualizer = visualizer;
+        this.keyLayoutParser = keyLayoutParser;
         this.pickrInstances = {};
         this.urlDebounceTimer = null;
         this.rebuildThrottleTimer = null;
         this.rebuildLastFired = 0;
         this.rebuildPending = null;
+        this.keyLayoutMode = false;
+        this.keyLayoutDefs = [];
+        this._klDragState = null;
+        this._klGridPx = 6.25;
 
         document.getElementById("configurator").style.display = "flex";
         document.getElementById("overlay").classList.remove("show");
 
-        this.initDefaultLayoutValues();
         this.setupBackgroundVideo();
         this.setupCheatSheetToggle();
 
@@ -38,9 +44,10 @@ export class ConfiguratorMode {
 
         this.setupConfigInputs();
         this.setupKeyAddButtons();
-        this.setupTagContainers();
         this.setupPreviewInputListeners();
         this.setupAnalogSense();
+        this.setupKeyLayoutEditor();
+        this._setupPreviewZoomAndGrid();
         this.updateState();
 
         //tiny delay for gamepads because im lazy
@@ -55,18 +62,12 @@ export class ConfiguratorMode {
             activecolor: "#5cf67d", inactivecolor: "#808080",
             backgroundcolor: "#1a1a1ad1", activebgcolor: "#47bd61",
             outlinecolor: "#4f4f4f", fontcolor: "#ffffff",
-            glowradius: "24", borderradius: "1",
+            glowradius: "24", borderradius: "10",
             pressscale: "110", animationspeed: "300",
             fontfamily: "ArialPixel",
             hidemouse: false, hidescrollcombo: false, boldfont: true,
             analogmode: false, gapmodifier: "100",
             outlinescalepressed: "2", outlinescaleunpressed: "2",
-            customLayoutRow1: DEFAULT_LAYOUT_STRINGS.row1,
-            customLayoutRow2: DEFAULT_LAYOUT_STRINGS.row2,
-            customLayoutRow3: DEFAULT_LAYOUT_STRINGS.row3,
-            customLayoutRow4: DEFAULT_LAYOUT_STRINGS.row4,
-            customLayoutRow5: DEFAULT_LAYOUT_STRINGS.row5,
-            customLayoutMouse: DEFAULT_LAYOUT_STRINGS.mouse,
             keylegendmode: "fading", forcedisableanalog: false,
             mousetrailsensitivity: "100",
             mousetrailfadeout: "600",
@@ -80,15 +81,11 @@ export class ConfiguratorMode {
             mousedistancedpi: "400",
             resetmousedistanceafterfade: false,
         });
-    }
-
-    initDefaultLayoutValues() {
-        const rowIds = ["customLayoutRow1", "customLayoutRow2", "customLayoutRow3", "customLayoutRow4", "customLayoutRow5", "customLayoutMouse"];
-        const keys = ["row1", "row2", "row3", "row4", "row5", "mouse"];
-        rowIds.forEach((id, i) => {
-            const el = document.getElementById(id);
-            if (el && !el.value) el.value = DEFAULT_LAYOUT_STRINGS[keys[i]];
-        });
+        if (this.keyLayoutParser) {
+            this.keyLayoutMode = true;
+            this.keyLayoutDefs = this._buildDefaultKeyLayoutDefs();
+            this._syncKeyLayoutEditorUI();
+        }
     }
 
     getCurrentSettings() {
@@ -118,12 +115,6 @@ export class ConfiguratorMode {
             gapmodifier: val("gapmodifier") || "100",
             outlinescalepressed: val("outlinescalepressed") || "2",
             outlinescaleunpressed: val("outlinescaleunpressed") || "2",
-            customLayoutRow1: val("customLayoutRow1"),
-            customLayoutRow2: val("customLayoutRow2"),
-            customLayoutRow3: val("customLayoutRow3"),
-            customLayoutRow4: val("customLayoutRow4"),
-            customLayoutRow5: val("customLayoutRow5"),
-            customLayoutMouse: val("customLayoutMouse"),
             keylegendmode: val("keylegendmode") || "inverting",
             forcedisableanalog: chk("forcedisableanalog"),
             mousetrailsensitivity: val("mousetrailsensitivity") || "100",
@@ -137,7 +128,15 @@ export class ConfiguratorMode {
             showmousedistance: chk("showmousedistance"),
             mousedistancedpi: val("mousedistancedpi") || "400",
             resetmousedistanceafterfade: chk("resetmousedistanceafterfade"),
+            keyLayout: this._getKeyLayoutParam(),
         };
+    }
+
+    _getKeyLayoutParam() {
+        if (!this.keyLayoutMode || !this.keyLayoutParser) return null;
+        if (!this.keyLayoutDefs.length) return "[]";
+        const tuples = this.keyLayoutParser.serializeAll(this.keyLayoutDefs);
+        return JSON.stringify(tuples);
     }
 
     updateSliderLabel(input) {
@@ -212,12 +211,6 @@ export class ConfiguratorMode {
         applyValue("boldfont", settings.boldfont);
         applyValue("outlinescalepressed", settings.outlinescalepressed ?? "2");
         applyValue("outlinescaleunpressed", settings.outlinescaleunpressed ?? "2");
-        applyValue("customLayoutRow1", settings.customLayoutRow1 ?? "");
-        applyValue("customLayoutRow2", settings.customLayoutRow2 ?? "");
-        applyValue("customLayoutRow3", settings.customLayoutRow3 ?? "");
-        applyValue("customLayoutRow4", settings.customLayoutRow4 ?? "");
-        applyValue("customLayoutRow5", settings.customLayoutRow5 ?? "");
-        applyValue("customLayoutMouse", settings.customLayoutMouse ?? "");
         applyValue("gapmodifier", settings.gapmodifier);
         applyValue("keylegendmode", settings.keylegendmode);
         applyValue("forcedisableanalog", settings.forcedisableanalog);
@@ -237,7 +230,6 @@ export class ConfiguratorMode {
     updateState(settings = null) {
         if (!settings) settings = this.getCurrentSettings();
         this.visualizer.applyStyles(settings, true);
-        this.renderAllTags();
 
         const THROTTLE_MS = 100;
         const now = performance.now();
@@ -248,6 +240,12 @@ export class ConfiguratorMode {
             this.visualizer.rebuildInterface(this.rebuildPending);
             this.rebuildLastFired = performance.now();
             this.rebuildPending = null;
+            if (this.keyLayoutMode) {
+                requestAnimationFrame(() => {
+                    this._attachKeyLayoutDragHandles();
+                    this._renderKeyLayoutList();
+                });
+            }
         }, Math.max(0, THROTTLE_MS - (now - this.rebuildLastFired)));
 
         clearTimeout(this.urlDebounceTimer);
@@ -265,15 +263,16 @@ export class ConfiguratorMode {
         const compressed = this.urlManager.compressSettings(paramsString);
         const safeCompressed = this.urlManager.compressSettings(safeParamsString);
         if (compressed) {
-            const safeUrl = `${base}?cfg=${safeCompressed}`;
-            window.history.replaceState({}, "", safeUrl);
+            window.history.replaceState({}, "", `${base}?cfg=${safeCompressed}`);
             linkInput.value = `${base}?cfg=${compressed}&${wsParam}`;
-            //console.clear();
+
             console.log(`compressed params: ${compressed}`);
             console.log(`uncompressed params: ${paramsString}`);
         } else {
             window.history.replaceState({}, "", `${base}?${safeParamsString}`);
             linkInput.value = `${base}?${paramsString}&${wsParam}`;
+
+            console.log(`uncompressed params: ${safeParamsString}`);
         }
 
         const container = linkInput.closest(".link-container") || document.querySelector(".link-container");
@@ -332,6 +331,23 @@ export class ConfiguratorMode {
 
             if (!Object.keys(settings).length) { flash("no params"); return; }
 
+            const klParam = sourceParams.get("keyLayout") || params.get("keyLayout");
+            if (klParam && this.keyLayoutParser) {
+                let tuples = this.keyLayoutParser.decompressTuples(klParam);
+                if (!tuples) { try { tuples = JSON.parse(klParam); } catch { tuples = null; } }
+                if (tuples) {
+                    this.keyLayoutDefs = this.keyLayoutParser.parseAll(tuples);
+                    this.keyLayoutMode = true;
+                    settings.keyLayout = this._getKeyLayoutParam();
+                    this._syncKeyLayoutEditorUI();
+                }
+            } else if (this.keyLayoutParser) {
+                const converted = this._convertRowsToKeyLayout(settings);
+                this.keyLayoutDefs = converted.length ? converted : this._buildDefaultKeyLayoutDefs();
+                this.keyLayoutMode = true;
+                this._syncKeyLayoutEditorUI();
+            }
+
             this.applySettings(settings);
             this.updateState();
             flash("loaded");
@@ -387,18 +403,6 @@ export class ConfiguratorMode {
             });
         }
 
-        const layoutRowIds = ["customLayoutRow1", "customLayoutRow2", "customLayoutRow3", "customLayoutRow4", "customLayoutRow5", "customLayoutMouse"];
-        for (const id of layoutRowIds) {
-            const el = document.getElementById(id);
-            if (!el) continue;
-            el.addEventListener("blur", () => {
-                if (!el.value.trim()) {
-                    el.value = "dummy";
-                    el.dispatchEvent(new Event("input", { bubbles: true }));
-                }
-            });
-        }
-
         const wsauthEl = document.getElementById("wsauth");
         const savedAuth = localStorage.getItem("overlay_wsauth");
         if (savedAuth && !wsauthEl.value) wsauthEl.value = savedAuth;
@@ -448,7 +452,7 @@ export class ConfiguratorMode {
         if (!els) return;
 
         if (type === "key_pressed" || type === "key_released") {
-            const isTyping = event.target.matches("input[type='text'], input[type='number'], textarea, .color-hex-input");
+            const isTyping = event.target.matches("input[type='text'], input[type='number'], textarea, .color-hex-input, .kl-inline-label-edit, .kl-tree-attr-input");
             let keyName = BROWSER_CODE_TO_KEY_NAME[event.code.toLowerCase()];
             let elements = els.keyElements.get(keyName);
 
@@ -547,8 +551,7 @@ export class ConfiguratorMode {
         if (typeof window.analogsense === "undefined") return;
 
         const btn = document.getElementById("analogconnectbtn");
-        const statusEl = document.getElementById("analogstatus");
-        if (!btn || !statusEl) return;
+        if (!btn) return;
 
         this.analogSenseActiveKeys = new Set();
         this.analogSensePrevDepths = {};
@@ -563,20 +566,20 @@ export class ConfiguratorMode {
             const currentScancodes = new Set(activeKeys.map(k => String(k.scancode)));
 
             for (const { scancode, value } of activeKeys) {
-                const keyName = HID_TO_KEY_NAME[scancode];
-                if (!keyName) continue;
+                const rawKeyName = HID_TO_KEY_NAME[scancode];
+                if (!rawKeyName) continue;
 
+                const keyElements = viz.previewElements.keyElements;
                 if (!viz.forceDisableAnalog) {
-                    if (!viz.analogMode) { viz.analogMode = true; viz.applyStyles(this.getCurrentSettings(), true); }
-                    viz.setAnalogDepthTarget(keyName, value);
+                    viz.setAnalogDepthTarget(rawKeyName, value);
                 }
 
                 const wasAbove = (this.analogSensePrevDepths[scancode] ?? 0) >= DIGITAL_THRESHOLD;
                 const isAbove = value >= DIGITAL_THRESHOLD;
 
                 if (isAbove !== wasAbove) {
-                    const elements = viz.previewElements.keyElements.get(keyName);
-                    if (elements) for (const el of elements) viz.updateElementState(el, keyName, isAbove, viz.activeKeys);
+                    const elements = keyElements.get(rawKeyName);
+                    if (elements) for (const el of elements) viz.updateElementState(el, rawKeyName, isAbove, viz.activeKeys);
                     if (isAbove) this.analogSenseActiveKeys.add(scancode);
                     else this.analogSenseActiveKeys.delete(scancode);
                 }
@@ -586,13 +589,14 @@ export class ConfiguratorMode {
 
             for (const scancode of this.analogSenseActiveKeys) {
                 if (currentScancodes.has(String(scancode))) continue;
-                const keyName = HID_TO_KEY_NAME[scancode];
-                if (keyName) {
+                const rawKeyName2 = HID_TO_KEY_NAME[scancode];
+                if (rawKeyName2) {
+                    const kels = viz.previewElements.keyElements;
                     if ((this.analogSensePrevDepths[scancode] ?? 0) >= DIGITAL_THRESHOLD) {
-                        const elements = viz.previewElements.keyElements.get(keyName);
-                        if (elements) for (const el of elements) viz.updateElementState(el, keyName, false, viz.activeKeys);
+                        const elements = kels.get(rawKeyName2);
+                        if (elements) for (const el of elements) viz.updateElementState(el, rawKeyName2, false, viz.activeKeys);
                     }
-                    viz.setAnalogDepthTarget(keyName, 0);
+                    viz.setAnalogDepthTarget(rawKeyName2, 0);
                 }
                 delete this.analogSensePrevDepths[scancode];
                 this.analogSenseActiveKeys.delete(scancode);
@@ -600,46 +604,7 @@ export class ConfiguratorMode {
         };
 
         const setConnected = (name) => {
-            statusEl.textContent = `connected: ${name}`;
-            statusEl.style.color = "#5cf67d";
-            btn.textContent = "disconnect";
-            btn.classList.add("connected");
-        };
-
-        const disconnect = () => {
-            this.analogSenseProvider?.stopListening();
-            this.analogSenseProvider = null;
-            this.analogSenseActiveKeys.clear();
-            this.analogSensePrevDepths = {};
-
-            const viz = this.visualizer;
-            if (viz.analogMode) {
-                viz.analogMode = false;
-                if (viz.analogRafId) { cancelAnimationFrame(viz.analogRafId); viz.analogRafId = null; }
-                viz.analogTargetDepths = {};
-                viz.analogCurrentDepths = {};
-
-                if (viz.previewElements) {
-                    viz.previewElements.keyElements.forEach((elements, keyName) => {
-                        for (const el of elements) {
-                            if (el.classList.contains("active") || el.classList.contains("analog-key")) {
-                                viz.updateElementState(el, keyName, false, viz.activeKeys);
-                                el.classList.remove("analog-key");
-                                el.style.removeProperty("--analog-depth");
-                                el.querySelector(".key-label-primary")?.style.removeProperty("color");
-                                const inv = el.querySelector(".key-label-inverted");
-                                if (inv) inv.style.clipPath = "inset(100% 0 0 0)";
-                            }
-                        }
-                    });
-                }
-                viz.applyStyles(this.getCurrentSettings(), true);
-            }
-
-            statusEl.textContent = "disconnected";
-            statusEl.style.color = "#808080";
-            btn.textContent = "connect analog";
-            btn.classList.remove("connected");
+            btn.textContent = `● ${name}`;
         };
 
         const connectDevice = async (provider) => {
@@ -652,13 +617,12 @@ export class ConfiguratorMode {
         analogsense.getDevices().then(devices => { if (devices.length) connectDevice(devices[0]); });
 
         btn.addEventListener("click", async () => {
-            if (this.analogSenseProvider) { disconnect(); return; }
             try {
                 const device = await analogsense.requestDevice();
                 if (device) await connectDevice(device);
-                else { statusEl.textContent = "no compatible keyboard found"; statusEl.style.color = "#f65c5c"; }
+                else btn.textContent = "no device found";
             } catch (e) {
-                if (e.name !== "SecurityError") { statusEl.textContent = `error: ${e.message}`; statusEl.style.color = "#f65c5c"; }
+                if (e.name !== "SecurityError") btn.textContent = `error: ${e.message}`;
             }
         });
     }
@@ -713,7 +677,7 @@ export class ConfiguratorMode {
                 lbl.textContent = opt ? opt.text : key;
                 const x = document.createElement("button");
                 x.className = "cfg-tag-remove";
-                x.textContent = "×";
+                x.textContent = "x";
                 x.addEventListener("click", () => { pipeKeys.splice(i, 1); renderPipeTags(); updateKeyString(); });
                 tag.appendChild(lbl);
                 tag.appendChild(x);
@@ -781,7 +745,7 @@ export class ConfiguratorMode {
                     break;
                 case "invisible":
                 case "dummy":
-                    keyString = widthClass ? `$none:"invis":${widthClass}` : keyName;
+                    keyString = widthClass ? `invisible:"invis":${widthClass}` : keyName;
                     break;
                 default: {
                     const label = labelInput.value || keyName.split("_")[1].toUpperCase();
@@ -791,6 +755,8 @@ export class ConfiguratorMode {
 
             if (!PIPE_UNSUPPORTED.has(keyName) && pipeKeys.length > 0)
                 keyString = pipeKeys.join("|") + "|" + keyString;
+
+            this._klPendingKeyString = keyString;
 
             const targetInput = document.getElementById(`customLayout${currentTargetRow}`);
             if (targetInput) {
@@ -956,7 +922,7 @@ export class ConfiguratorMode {
             if (item.keys && item.keys.length > 1) {
                 pipeKeys = item.type === "scroller"
                     ? item.keys.filter(k => k !== "scroller")
-                    : item.keys.slice(1);
+                    : item.keys.slice(0, -1);
             } else {
                 pipeKeys = [];
             }
@@ -1013,7 +979,7 @@ export class ConfiguratorMode {
                     break;
                 default: {
                     if (item.class?.includes("invisible") && !item.key) { setType("invisible"); break; }
-                    const keyVal = item.key || "key_a";
+                    const keyVal = (item.keys?.length > 1 ? item.keys[item.keys.length - 1] : item.key) || "key_a";
                     setType(keyVal);
                     labelInput.value = item.label || "";
                     const wcls = (item.class || "").split(" ").find(c => /^u[\d-]+$/.test(c)) || "";
@@ -1025,16 +991,16 @@ export class ConfiguratorMode {
             isUpdating = false;
         };
 
-        const openPopupForEdit = (rowId, idx, parts, raw) => {
-            editingIndex = idx;
-            editingParts = [...parts];
+        this._openPopupForAdd = (rowId, triggerEl) => {
+            editingIndex = null;
+            editingParts = [];
+            pipeKeys = [];
+            addBtn.textContent = "add key";
+            isUpdating = false;
             currentTargetRow = rowId;
-            originalValue = document.getElementById(`customLayout${rowId}`)?.value || "";
-            addBtn.textContent = "update key";
+            originalValue = "";
 
-            const ROW_TO_BTN = { Row1: "addKey1", Row2: "addKey2", Row3: "addKey3", Row4: "addKey4", Row5: "addKey5", Mouse: "addKeyMouse" };
-            const triggerBtn = document.getElementById(ROW_TO_BTN[rowId]);
-            const rect = triggerBtn?.getBoundingClientRect() || { left: 100, right: 110, top: 100 };
+            const rect = triggerEl?.getBoundingClientRect() || { left: 100, right: 110, top: 100 };
             const pw = 340, ph = 500;
             let left = rect.left - pw, top = rect.top;
             if (left < 10) left = rect.right + 10;
@@ -1043,16 +1009,21 @@ export class ConfiguratorMode {
             if (top < 10) top = 10;
 
             popup.style.cssText = `display:block;left:${left}px;top:${top}px;`;
+            keySelect.value = "key_a";
+            labelInput.value = "A";
+            widthSlider.value = 100; widthValue.textContent = "1.00u";
+            heightSlider.value = 100; heightValue.textContent = "1.00u";
+            heightField.style.display = "none";
             scrollerLabels.style.display = "none";
             scrollUpDownLabels.style.display = "none";
             mouseSideLabels.style.display = "none";
             anchorField.style.display = "none";
-            heightField.style.display = "none";
+            anchorSelect.value = "a-tl";
             labelInput.parentElement.style.display = "block";
-            prefillFromRaw(raw);
+            pipeSection.style.display = "";
+            renderPipeTags();
+            updateKeyString();
         };
-
-        this._openPopupForEdit = openPopupForEdit;
 
         const cancelPopup = () => {
             editingIndex = null;
@@ -1060,12 +1031,28 @@ export class ConfiguratorMode {
             pipeKeys = [];
             addBtn.textContent = "add key";
             isUpdating = true;
-            const inp = document.getElementById(`customLayout${currentTargetRow}`);
-            if (inp) { inp.value = originalValue; inp.dispatchEvent(new Event("input", { bubbles: true })); }
             popup.style.display = "none";
         };
 
         addBtn.addEventListener("click", () => {
+            if (this.keyLayoutMode && currentTargetRow === "KlMode") {
+                if (this._klPendingKeyString) {
+                    const def = this._rowKeyStringToDef(this._klPendingKeyString);
+                    if (def) {
+                        if (this.keyLayoutDefs.length) {
+                            const last = this.keyLayoutDefs[this.keyLayoutDefs.length - 1];
+                            def.x = last.x + last.w * 50 + 4;
+                            def.y = last.y;
+                        } else {
+                            def.x = LAYOUT_ORIGIN.x;
+                            def.y = LAYOUT_ORIGIN.y;
+                        }
+                        this.keyLayoutDefs.push(def);
+                        this._commitKeyLayoutDefs();
+                    }
+                }
+                this._klPendingKeyString = null;
+            }
             editingIndex = null;
             editingParts = [];
             pipeKeys = [];
@@ -1102,96 +1089,6 @@ export class ConfiguratorMode {
         }
     }
 
-    setupTagContainers() {
-        const rows = ["Row1", "Row2", "Row3", "Row4", "Row5", "Mouse"];
-        for (const rowId of rows) {
-            const textarea = document.getElementById(`customLayout${rowId}`);
-            if (!textarea) continue;
-
-            const container = document.createElement("div");
-            container.className = "cfg-tags-container";
-            container.dataset.rowId = rowId;
-            textarea.parentElement.insertBefore(container, textarea);
-            textarea.style.display = "none";
-
-            const toggleBtn = document.createElement("button");
-            toggleBtn.className = "cfg-addbtn cfg-raw-toggle";
-            toggleBtn.title = "edit raw syntax";
-            toggleBtn.textContent = "✎";
-            textarea.parentElement.appendChild(toggleBtn);
-
-            toggleBtn.addEventListener("click", () => {
-                const isRaw = textarea.style.display !== "none";
-                if (isRaw) {
-                    textarea.style.display = "none";
-                    container.style.display = "";
-                    toggleBtn.classList.remove("is-raw");
-                    toggleBtn.title = "edit raw syntax";
-                } else {
-                    textarea.style.display = "";
-                    container.style.display = "none";
-                    toggleBtn.classList.add("is-raw");
-                    toggleBtn.title = "show tags";
-                    textarea.focus();
-                }
-            });
-        }
-    }
-
-    renderTags(rowId) {
-        const textarea = document.getElementById(`customLayout${rowId}`);
-        const container = document.querySelector(`.cfg-tags-container[data-row-id="${rowId}"]`);
-        if (!textarea || !container) return;
-
-        const rawValue = textarea.value.trim();
-        const parts = rawValue ? rawValue.split(/\s*,\s*/) : [];
-        const items = parts.map(p => this.layoutParser.parseElementDef(p));
-
-        container.innerHTML = "";
-
-        if (!parts.length) {
-            const placeholder = document.createElement("span");
-            placeholder.className = "cfg-tags-placeholder";
-            placeholder.textContent = "empty";
-            container.appendChild(placeholder);
-            return;
-        }
-
-        parts.forEach((raw, idx) => {
-            const item = items[idx];
-
-            const tag = document.createElement("span");
-            tag.className = "cfg-tag";
-
-            const labelEl = document.createElement("span");
-            labelEl.className = "cfg-tag-label";
-            labelEl.textContent = item ? this.getTagLabel(item) : raw;
-            labelEl.title = raw;
-            labelEl.addEventListener("click", () => {
-                if (this._openPopupForEdit) this._openPopupForEdit(rowId, idx, parts, raw);
-            });
-
-            const removeBtn = document.createElement("button");
-            removeBtn.className = "cfg-tag-remove";
-            removeBtn.textContent = "×";
-            removeBtn.title = "Remove";
-            removeBtn.addEventListener("click", () => {
-                const newParts = parts.filter((_, i) => i !== idx);
-                textarea.value = newParts.join(", ") || "dummy";
-                textarea.dispatchEvent(new Event("input", { bubbles: true }));
-            });
-
-            tag.appendChild(labelEl);
-            tag.appendChild(removeBtn);
-            container.appendChild(tag);
-        });
-    }
-
-    renderAllTags() {
-        for (const rowId of ["Row1", "Row2", "Row3", "Row4", "Row5", "Mouse"])
-            this.renderTags(rowId);
-    }
-
     getWidthClass(value) {
         if (value === 100) return "";
         const units = value / 100;
@@ -1201,5 +1098,762 @@ export class ConfiguratorMode {
         let dec = decNum.toString().padStart(2, "0");
         if (dec.endsWith("0") && !dec.startsWith("0")) dec = dec.slice(0, -1);
         return `u${intPart}-${dec}`;
+    }
+
+    setupKeyLayoutEditor() {
+        if (!this.keyLayoutParser) return;
+
+        const klEditor = document.getElementById("klEditor");
+        const klAddBtn = document.getElementById("klAddKeyBtn");
+        const klAddPopup = document.getElementById("klAddPopup");
+        const klAddCancelBtn = document.getElementById("klAddCancelBtn");
+        const klAddConfirmBtn = document.getElementById("klAddConfirmBtn");
+        const klClearBtn = document.getElementById("klClearBtn");
+
+        if (!klEditor) return;
+
+        klClearBtn?.addEventListener("click", () => {
+            this.keyLayoutDefs = [];
+            this._commitKeyLayoutDefs();
+        });
+
+        klAddBtn?.addEventListener("click", () => {
+            if (this._openPopupForAdd) this._openPopupForAdd("KlMode", klAddBtn);
+            else if (klAddPopup) klAddPopup.style.display = "flex";
+        });
+
+        klAddCancelBtn?.addEventListener("click", () => {
+            if (klAddPopup) klAddPopup.style.display = "none";
+        });
+
+        klAddConfirmBtn?.addEventListener("click", () => {
+            const typeEl = document.getElementById("klAddType");
+            const labelEl = document.getElementById("klAddLabel");
+            if (!typeEl) return;
+            const type = typeEl.value;
+            const arity = this.keyLayoutParser.getLabelArity(type);
+            const def = { type, w: 1, h: 1, x: LAYOUT_ORIGIN.x, y: LAYOUT_ORIGIN.y };
+            if (type === "mouse_pad" || type === "gp_joystick_ls" || type === "gp_joystick_rs") { def.w = 3; def.h = 3; }
+            if (arity === 1) def.label = labelEl?.value || type.split("_").pop().toUpperCase();
+            else if (arity > 1) {
+                const defaults = { scroller: ["M3", "🡅", "🡇"], scroll_updown: ["🡅", "🡇"], mouse_side: ["M5", "M4"] };
+                def.labels = defaults[type] || Array(arity).fill("");
+            }
+            if (this.keyLayoutDefs.length) {
+                const last = this.keyLayoutDefs[this.keyLayoutDefs.length - 1];
+                def.x = last.x + last.w * 50 + 4;
+                def.y = last.y;
+            }
+            this.keyLayoutDefs.push(def);
+            if (klAddPopup) klAddPopup.style.display = "none";
+            this._commitKeyLayoutDefs();
+        });
+
+        //grid snapper
+        const klGridSlider = document.getElementById("klGridSlider");
+        const klGridLabel = document.getElementById("klGridLabel");
+        const gridPxValues = [0, 3.125, 6.25, 9.375, 12.5, 15.625, 18.75, 21.875, 25, 31.25, 37.5, 43.75, 50, 75, 100, 150];
+        const gridLabels = ["none", "0.06u", "0.13u", "0.19u", "0.25u", "0.31u", "0.38u", "0.44u", "0.5u", "0.63u", "0.75u", "0.88u", "1u", "1.5u", "2u", "3u"];
+        klGridSlider?.addEventListener("input", () => {
+            const idx = parseInt(klGridSlider.value);
+            this._klGridPx = gridPxValues[idx] ?? 0;
+            if (klGridLabel) klGridLabel.textContent = gridLabels[idx] ?? "none";
+        });
+
+        document.addEventListener("pointermove", (e) => this._onKlPointerMove(e));
+        document.addEventListener("pointerup", (e) => this._onKlPointerUp(e));
+
+        this._syncKeyLayoutEditorUI();
+    }
+
+    _setupPreviewZoomAndGrid() {
+        const zoomSlider = document.getElementById("previewZoomSlider");
+        const zoomLabel = document.getElementById("previewZoomLabel");
+        const previewContent = document.getElementById("klPreviewContent");
+        const wrapper = document.getElementById("preview-wrapper");
+        const canvas = document.getElementById("klGridCanvas");
+        const scrollArea = document.getElementById("previewScrollArea");
+
+        if (zoomSlider && previewContent) {
+            const applyZoom = () => {
+                const zoom = parseInt(zoomSlider.value);
+                if (zoomLabel) zoomLabel.textContent = `${zoom}%`;
+                previewContent.style.zoom = `${zoom}%`;
+            };
+            zoomSlider.addEventListener("input", applyZoom);
+            applyZoom();
+            this._previewZoomSlider = zoomSlider;
+        }
+
+        if (!canvas || !wrapper || !previewContent) return;
+
+        const drawGrid = () => {
+            if (!this.keyLayoutMode || !this._klGridPx) { canvas.style.display = "none"; return; }
+            const wrapperRect = wrapper.getBoundingClientRect();
+            const contentRect = previewContent.getBoundingClientRect();
+            canvas.width = wrapperRect.width;
+            canvas.height = wrapperRect.height;
+            canvas.style.display = "block";
+            const ctx = canvas.getContext("2d");
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const zoom = parseInt(zoomSlider?.value || "75") / 100;
+            const gridScreenPx = this._klGridPx * zoom;
+            if (gridScreenPx < 2) { canvas.style.display = "none"; return; }
+            const originX = contentRect.left - wrapperRect.left;
+            const originY = contentRect.top - wrapperRect.top;
+            ctx.strokeStyle = "rgba(255,255,255,0.12)";
+            ctx.lineWidth = 0.5;
+            ctx.beginPath();
+            let sx = originX % gridScreenPx;
+            while (sx < 0) sx += gridScreenPx;
+            for (let x = sx; x <= canvas.width; x += gridScreenPx) { ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); }
+            let sy = originY % gridScreenPx;
+            while (sy < 0) sy += gridScreenPx;
+            for (let y = sy; y <= canvas.height; y += gridScreenPx) { ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); }
+            ctx.stroke();
+            if (originX >= 0 && originX <= canvas.width) {
+                ctx.strokeStyle = "rgba(255,255,255,0.3)";
+                ctx.beginPath(); ctx.moveTo(originX, 0); ctx.lineTo(originX, canvas.height); ctx.stroke();
+            }
+            if (originY >= 0 && originY <= canvas.height) {
+                ctx.strokeStyle = "rgba(255,255,255,0.3)";
+                ctx.beginPath(); ctx.moveTo(0, originY); ctx.lineTo(canvas.width, originY); ctx.stroke();
+            }
+        };
+        this._drawPreviewGrid = drawGrid;
+
+        wrapper.addEventListener("mouseenter", () => { if (this.keyLayoutMode && this._klGridPx > 0) drawGrid(); });
+        wrapper.addEventListener("mouseleave", () => { canvas.style.display = "none"; });
+        wrapper.addEventListener("mousemove", () => {
+            if (this.keyLayoutMode && this._klGridPx > 0) drawGrid();
+            else canvas.style.display = "none";
+        });
+        scrollArea?.addEventListener("scroll", () => { if (canvas.style.display !== "none") drawGrid(); });
+    }
+
+    enterKeyLayoutMode() {
+        if (!this.keyLayoutParser) return;
+        this.keyLayoutMode = true;
+        if (!this.keyLayoutDefs.length) {
+            this.keyLayoutDefs = this._buildDefaultKeyLayoutDefs();
+        }
+        this._syncKeyLayoutEditorUI();
+        this._commitKeyLayoutDefs();
+    }
+
+    _convertRowsToKeyLayout(settings) {
+        const U = 50, GAP = 8 * (parseFloat(settings.gapmodifier) / 100 || 1);
+        const defs = [];
+
+        const parseUStr = (uStr) => {
+            if (!uStr) return 1;
+            const m = uStr.match(/^u(\d+)(?:-(\d+))?$/);
+            if (!m) return 1;
+            const dec = m[2] ? (m[2].length === 1 ? parseInt(m[2]) * 10 : parseInt(m[2])) : 0;
+            return parseInt(m[1]) + dec / 100;
+        };
+
+        const LEGACY_WIDTH_U = { "wide": 1.5, "extra-wide": 2, "super-wide": 3.4 };
+        const parseWFromClass = (cls) => {
+            if (!cls) return 1;
+            for (const t of cls.split(/\s+/)) {
+                if (LEGACY_WIDTH_U[t] !== undefined) return LEGACY_WIDTH_U[t];
+                if (/^u\d/.test(t)) return parseUStr(t);
+                const wm = t.match(/^w-(\d+)(?:-(\d+))?u$/);
+                if (wm) {
+                    const dec = wm[2] ? (wm[2].length === 1 ? parseInt(wm[2]) * 10 : parseInt(wm[2])) : 0;
+                    return parseInt(wm[1]) + dec / 100;
+                }
+            }
+            return 1;
+        };
+
+        const convertRow = (items, yOffset) => {
+            let xOffset = 0;
+            for (const item of items) {
+                if (item.type === "dummy" || item.type === "br") continue;
+
+                if (item.type === "mouse_pad") {
+                    const wU = parseUStr(item.widthClass);
+                    const hU = parseUStr(item.heightClass);
+                    const anchor = item.anchor || "a-tl";
+                    const anchorH = anchor[3], anchorV = anchor[2];
+                    //ICIF:
+                    //legacy row system used marginLeft:-GAP (right) and marginLeft:-GAP/2 (center) to pull
+                    //the no width container back relative to its pos
+                    const gapShift = anchorH === "r" ? GAP : anchorH === "c" ? GAP / 2 : 0;
+                    const padX = anchorH === "r" ? xOffset - gapShift - wU * U : anchorH === "c" ? xOffset - gapShift - (wU * U) / 2 : xOffset;
+                    const padY = anchorV === "b" ? yOffset + U - hU * U : anchorV === "c" ? yOffset + (U - hU * U) / 2 : yOffset;
+                    defs.push({ type: "mouse_pad", w: wU, h: hU, x: padX, y: padY });
+                    continue;
+                }
+
+                if (item.type === "gp_joystick") {
+                    const wU = parseUStr(item.widthClass);
+                    const hU = parseUStr(item.heightClass || item.widthClass);
+                    const type = item.stickId === "gp_ls" ? "gp_joystick_ls" : "gp_joystick_rs";
+                    const anchor = item.anchor || "a-tl";
+                    const anchorH = anchor[3], anchorV = anchor[2];
+                    const joyX = anchorH === "r" ? xOffset - wU * U : anchorH === "c" ? xOffset - (wU * U) / 2 : xOffset;
+                    const joyY = anchorV === "b" ? yOffset + U - hU * U : anchorV === "c" ? yOffset + (U - hU * U) / 2 : yOffset;
+                    defs.push({ type, w: wU, h: hU, x: joyX, y: joyY });
+                    continue;
+                }
+
+                const isInvis = item.class?.includes("invisible") || item.label === "invis";
+                if (isInvis) {
+                    const wU = parseWFromClass(item.class?.replace("invisible", "").trim()) || 1;
+                    xOffset += wU * U + GAP;
+                    continue;
+                }
+
+                const w = parseWFromClass(item.class);
+                //legacy used { width: 70px } on the scroller
+                //u1 gives 50px; u1-0/u1-00 dont have any width syntax so fall back to 70px
+                const scrollW = (() => {
+                    const token = item.class?.split(/\s+/).find(t => /^u\d/.test(t));
+                    if (!token) return 70 / U;
+                    const m = token.match(/^u(\d+)(?:-(\d+))?$/);
+                    if (!m || (m[2] && parseInt(m[2]) === 0)) return 70 / U;
+                    return w;
+                })();
+                let def;
+
+                if (item.type === "scroller") {
+                    def = { type: "scroller", labels: [...(item.labels || [])], w: scrollW, h: 1, x: xOffset, y: yOffset };
+                } else if (item.type === "scroll_updown") {
+                    def = { type: "scroll_updown", labels: [...(item.labels || [])], w: scrollW, h: 1, x: xOffset, y: yOffset };
+                } else if (item.type === "scroll_up") {
+                    def = { type: "scroll_up", label: item.label ?? "", w: scrollW, h: 1, x: xOffset, y: yOffset };
+                } else if (item.type === "scroll_down") {
+                    def = { type: "scroll_down", label: item.label ?? "", w: scrollW, h: 1, x: xOffset, y: yOffset };
+                } else if (item.type === "mouse_side") {
+                    def = { type: "mouse_side", labels: [...(item.labels || [])], w, h: 1, x: xOffset, y: yOffset };
+                } else {
+                    const keyType = item.keys?.length > 1 ? item.keys.join("|") : (item.key ?? item.type);
+                    def = { type: keyType, label: item.label ?? "", w, h: 1, x: xOffset, y: yOffset };
+                }
+
+                defs.push(def);
+                xOffset += def.w * U + GAP;
+            }
+        };
+
+        const rowKeys = ["customLayoutRow1", "customLayoutRow2", "customLayoutRow3", "customLayoutRow4", "customLayoutRow5"];
+        let yOffset = 0;
+
+        for (const key of rowKeys) {
+            if (!settings[key]) continue;
+            const rows = this.layoutParser.splitByBr(this.layoutParser.parseCustomLayoutInput(settings[key]));
+            for (const row of rows) {
+                if (!row.length) continue;
+                convertRow(row, yOffset);
+                yOffset += U + GAP;
+            }
+        }
+
+        if (settings.customLayoutMouse) {
+            const rows = this.layoutParser.splitByBr(this.layoutParser.parseCustomLayoutInput(settings.customLayoutMouse));
+            for (const row of rows) {
+                if (!row.length) continue;
+                convertRow(row, yOffset);
+                yOffset += U + GAP;
+            }
+        }
+
+        this._centerLayoutDefs(defs);
+        return defs;
+    }
+
+    _buildDefaultKeyLayoutDefs() {
+        if (!this.keyLayoutParser) return [];
+        const tuples = [
+            ["key_1", "1", 1, 1, 56.25, 0],
+            ["key_2", "2", 1, 1, 112.5, 0],
+            ["key_3", "3", 1, 1, 168.75, 0],
+            ["key_4", "4", 1, 1, 225, 0],
+            ["key_tab", "TAB", 1.5, 1, 0, 56.25],
+            ["key_q", "Q", 1, 1, 81.25, 56.25],
+            ["key_w", "W", 1, 1, 137.5, 56.25],
+            ["key_e", "E", 1, 1, 193.75, 56.25],
+            ["key_r", "R", 1, 1, 250, 56.25],
+            ["key_leftshift", "SHIFT", 2, 1, 0, 112.5],
+            ["key_a", "A", 1, 1, 106.25, 112.5],
+            ["key_s", "S", 1, 1, 162.5, 112.5],
+            ["key_d", "D", 1, 1, 218.75, 112.5],
+            ["key_f", "F", 1, 1, 275, 112.5],
+            ["key_leftctrl", "CTRL", 1.5, 1, 0, 168.75],
+            ["key_leftalt", "ALT", 1.5, 1, 81.25, 168.75],
+            ["key_space", "SPACE", 3.25, 1, 162.5, 168.75],
+            ["mouse_left", "M1", 1.625, 0.63, 331.25, 0],
+            ["scroller", "M3", "🡅", "🡇", 1.5, 0.63, 418.75, 0],
+            ["mouse_right", "M2", 1.625, 0.63, 500, 0],
+            ["mouse_pad", 5, 3.63, 331.25, 37.5],
+        ];
+        return this.keyLayoutParser.parseAll(tuples);
+    }
+
+    _centerLayoutDefs(defs) {
+        if (!defs.length) return;
+        const minX = Math.min(...defs.map(d => d.x));
+        const minY = Math.min(...defs.map(d => d.y));
+        const offX = LAYOUT_ORIGIN.x - minX;
+        const offY = LAYOUT_ORIGIN.y - minY;
+        if (offX !== 0 || offY !== 0) defs.forEach(d => { d.x += offX; d.y += offY; });
+    }
+
+    _syncKeyLayoutEditorUI() {
+        const klEditor = document.getElementById("klEditor");
+        const klPreviewControls = document.getElementById("klPreviewControls");
+        if (!klEditor) return;
+        klEditor.style.display = "flex";
+        if (klPreviewControls) klPreviewControls.style.display = this.keyLayoutMode ? "flex" : "none";
+    }
+
+    _commitKeyLayoutDefs() {
+        this.updateState();
+    }
+
+    _renderKeyLayoutList() {
+        const list = document.getElementById("klElementList");
+        if (!list) return;
+
+        //save open state before clearing
+        const openItems = new Set();
+        const closedGroups = new Set();
+        list.querySelectorAll('.kl-tree-node[data-kl-idx]').forEach(node => {
+            const det = node.querySelector(':scope > details');
+            if (det?.open) openItems.add(node.dataset.klIdx);
+        });
+        list.querySelectorAll('.tree-view > li > details').forEach(d => {
+            if (!d.open) {
+                const summary = d.querySelector(':scope > summary');
+                const text = summary ? Array.from(summary.childNodes)
+                    .filter(n => n.nodeType === 3).map(n => n.textContent.trim()).join('') : '';
+                if (text) closedGroups.add(text);
+            }
+        });
+
+        list.innerHTML = "";
+        if (!this.keyLayoutDefs.length) {
+            list.innerHTML = '<div class="kl-tree-empty">no elements</div>';
+            return;
+        }
+
+        const getShortName = (def) => {
+            if (def.type === "$") return "spacer";
+            const pipeKeys = def.type.includes("|") ? def.type.split("|") : null;
+            if (def.label) return pipeKeys?.length > 1 ? `${def.label} [+${pipeKeys.length - 1}]` : def.label;
+            if (def.labels?.length) return def.labels.filter(Boolean).join("/");
+            if (pipeKeys?.length > 1) {
+                const primary = pipeKeys[pipeKeys.length - 1].replace(/^key_/, "").replace(/_/g, " ").toUpperCase();
+                return `${primary} [+${pipeKeys.length - 1}]`;
+            }
+            return def.type.replace(/^key_/, "").replace(/^mouse_/, "").replace(/^gp_/, "").replace(/_/g, " ").toUpperCase();
+        };
+        const getGroupKey = (def) => {
+            if (def.type === "$") return "special";
+            if (def.type.startsWith("key_")) return "keyboard";
+            if (def.type === "mouse_pad") return "mouse pad";
+            if (def.type.startsWith("mouse_") || def.type === "scroller" || def.type.startsWith("scroll_")) return "mouse";
+            if (def.type.startsWith("gp_")) return "gamepad";
+            return "special";
+        };
+
+        const numFmt = (n) => Number(n).toFixed(2).replace(/\.?0+$/, "");
+
+        const GROUP_ORDER = ["keyboard", "mouse", "mouse pad", "gamepad", "special"];
+        const grouped = {};
+        GROUP_ORDER.forEach(g => { grouped[g] = []; });
+        this.keyLayoutDefs.forEach((def, idx) => grouped[getGroupKey(def)].push({ def, idx }));
+
+        const canvas = document.getElementById("preview-keyboard");
+        const makeNode = (def, idx) => {
+            const node = document.createElement("li");
+            node.className = "kl-tree-node";
+            if (def.type !== "$") {
+                node.dataset.klIdx = String(idx);
+                node.addEventListener("mouseenter", () => {
+                    const cEl = canvas?.querySelector(`[data-kl-idx="${idx}"]`);
+                    if (cEl) { cEl.classList.add("kl-hover-highlight"); cEl.scrollIntoView({ block: "nearest", inline: "nearest" }); }
+                });
+                node.addEventListener("mouseleave", () => {
+                    canvas?.querySelector(`[data-kl-idx="${idx}"]`)?.classList.remove("kl-hover-highlight");
+                });
+            }
+
+            const itemDetails = document.createElement("details");
+            const summary = document.createElement("summary");
+
+            const nameEl = document.createElement("span");
+            nameEl.className = "kl-tree-name";
+            nameEl.textContent = getShortName(def);
+
+            const posEl = document.createElement("span");
+            posEl.className = "kl-tree-pos";
+            posEl.textContent = `${numFmt(def.x - LAYOUT_ORIGIN.x)},${numFmt(def.y - LAYOUT_ORIGIN.y)}`;
+
+            const delBtn = document.createElement("button");
+            delBtn.className = "kl-tree-del";
+            delBtn.textContent = "x";
+            delBtn.title = "delete";
+            delBtn.addEventListener("click", (e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                this.keyLayoutDefs.splice(idx, 1);
+                this._commitKeyLayoutDefs();
+            });
+
+            summary.append(delBtn, posEl, nameEl);
+            itemDetails.appendChild(summary);
+
+            const attrList = document.createElement("ul");
+
+            const makeAttrRow = (labelText, getValue, setValue, type = "text") => {
+                const li = document.createElement("li");
+                li.className = "kl-tree-attr";
+                const lbl = document.createElement("span");
+                lbl.className = "kl-tree-attr-label";
+                lbl.textContent = labelText;
+                const inp = document.createElement("input");
+                inp.className = "kl-tree-attr-input";
+                inp.type = type;
+                inp.value = getValue();
+                if (type === "number") { inp.step = "0.25"; }
+                inp.addEventListener("change", () => {
+                    setValue(inp.value);
+                    posEl.textContent = `${numFmt(def.x - LAYOUT_ORIGIN.x)},${numFmt(def.y - LAYOUT_ORIGIN.y)}`;
+                    nameEl.textContent = getShortName(def);
+                    this._commitKeyLayoutDefs();
+                });
+                li.append(lbl, inp);
+                return li;
+            };
+
+            attrList.appendChild(makeAttrRow("x", () => numFmt(def.x - LAYOUT_ORIGIN.x), (v) => { def.x = parseFloat(v) + LAYOUT_ORIGIN.x; }, "number"));
+            attrList.appendChild(makeAttrRow("y", () => numFmt(def.y - LAYOUT_ORIGIN.y), (v) => { def.y = parseFloat(v) + LAYOUT_ORIGIN.y; }, "number"));
+            attrList.appendChild(makeAttrRow("w", () => numFmt(def.w), (v) => { def.w = Math.max(0.25, parseFloat(v) || 1); }, "number"));
+            attrList.appendChild(makeAttrRow("h", () => numFmt(def.h), (v) => { def.h = Math.max(0.25, parseFloat(v) || 1); }, "number"));
+            if ("label" in def) {
+                attrList.appendChild(makeAttrRow("key", () => def.type, (v) => { def.type = v.trim() || "key_a"; }));
+                attrList.appendChild(makeAttrRow("label", () => def.label || "", (v) => { def.label = v; }));
+            }
+            if ("labels" in def) {
+                const baseType = def.type.split("|")[0];
+                def.labels.forEach((_lv, li) => {
+                    const names = { scroller: ["M3", "up", "down"], scroll_updown: ["up", "down"], mouse_side: ["M5", "M4"] };
+                    const labelName = names[baseType]?.[li] ?? `label ${li}`;
+                    attrList.appendChild(makeAttrRow(labelName, () => def.labels[li] || "", (v) => { def.labels[li] = v; }));
+                });
+                if (baseType === "scroller" || baseType === "scroll_updown") {
+                    attrList.appendChild(makeAttrRow("also keys", () => def.type.split("|").slice(1).join("|"), (v) => {
+                        const extras = v.trim().split(/[|,\s]+/).filter(Boolean);
+                        def.type = extras.length ? [baseType, ...extras].join("|") : baseType;
+                    }));
+                }
+            }
+
+            itemDetails.appendChild(attrList);
+            node.appendChild(itemDetails);
+            return node;
+        };
+
+        const root = document.createElement("ul");
+        root.className = "tree-view";
+
+        for (const groupKey of GROUP_ORDER) {
+            const items = grouped[groupKey];
+            if (!items.length) continue;
+
+            const groupLi = document.createElement("li");
+
+            const groupDetails = document.createElement("details");
+            groupDetails.open = true;
+
+            const groupSummary = document.createElement("summary");
+            const countSpan = document.createElement("span");
+            countSpan.className = "kl-tree-count";
+            countSpan.textContent = items.length;
+            groupSummary.append(groupKey, countSpan);
+            groupDetails.appendChild(groupSummary);
+
+            const itemsUl = document.createElement("ul");
+            for (const { def, idx } of items) {
+                itemsUl.appendChild(makeNode(def, idx));
+            }
+
+            groupDetails.appendChild(itemsUl);
+            groupLi.appendChild(groupDetails);
+            root.appendChild(groupLi);
+        }
+
+        list.appendChild(root);
+
+        //Restore open state
+        list.querySelectorAll('.kl-tree-node[data-kl-idx]').forEach(node => {
+            if (openItems.has(node.dataset.klIdx)) {
+                const det = node.querySelector(':scope > details');
+                if (det) det.open = true;
+            }
+        });
+        list.querySelectorAll('.tree-view > li > details').forEach(d => {
+            const summary = d.querySelector(':scope > summary');
+            const text = summary ? Array.from(summary.childNodes)
+                .filter(n => n.nodeType === 3).map(n => n.textContent.trim()).join('') : '';
+            if (text && closedGroups.has(text)) d.open = false;
+        });
+    }
+
+    _attachKeyLayoutDragHandles() {
+        const container = document.getElementById("preview-keyboard");
+        if (!container || !this.keyLayoutMode) return;
+
+        container.querySelectorAll(".kl-edge-handle, .kl-delete-btn").forEach(el => el.remove());
+
+        const children = Array.from(container.children);
+        const defIndices = [];
+        for (let i = 0; i < this.keyLayoutDefs.length; i++) {
+            if (this.keyLayoutDefs[i].type !== "$") defIndices.push(i);
+        }
+
+        const sidebarList = document.getElementById("klElementList");
+        children.forEach((child, ci) => {
+            const defIdx = defIndices[ci];
+            if (defIdx == null) return;
+            child.dataset.klIdx = String(defIdx);
+            const isCanvas = child.classList.contains("mousepad-wrap") || child.classList.contains("joystick-wrap");
+            if (isCanvas) {
+                child.style.pointerEvents = "auto";
+            } else {
+                child.style.overflow = "visible";
+            }
+
+            child.addEventListener("mouseenter", () => {
+                const sNode = sidebarList?.querySelector(`.kl-tree-node[data-kl-idx="${defIdx}"]`);
+                if (sNode) { sNode.classList.add("kl-hover-highlight"); sNode.scrollIntoView({ block: "nearest" }); }
+            });
+            child.addEventListener("mouseleave", () => {
+                sidebarList?.querySelector(`.kl-tree-node[data-kl-idx="${defIdx}"]`)?.classList.remove("kl-hover-highlight");
+            });
+
+            const del = document.createElement("button");
+            del.className = "kl-delete-btn";
+            del.style.position = "absolute";
+
+            if (isCanvas) { del.style.top = "4px"; del.style.right = "4px"; }
+            
+            del.textContent = "x";
+            del.title = "remove";
+            del.addEventListener("pointerdown", (e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                this.keyLayoutDefs.splice(defIdx, 1);
+                this._commitKeyLayoutDefs();
+            });
+            child.appendChild(del);
+
+            child.addEventListener("dblclick", (e) => {
+                if (e.target.classList.contains("kl-edge-handle") || e.target.classList.contains("kl-delete-btn")) return;
+                e.stopPropagation();
+                const def = this.keyLayoutDefs[defIdx];
+                if (!("label" in def)) return;
+                const input = document.createElement("input");
+                input.type = "text";
+                input.className = "kl-inline-label-edit";
+                input.value = def.label || "";
+                input.style.cssText = "position:absolute;inset:0;width:100%;height:100%;background:rgba(0,0,0,0.75);color:#fff;border:2px solid var(--active);border-radius:4px;text-align:center;font:inherit;font-size:12px;z-index:300;box-sizing:border-box;padding:0 4px;";
+                child.appendChild(input);
+                input.focus();
+                input.select();
+                const commit = () => {
+                    def.label = input.value || def.label;
+                    input.remove();
+                    this._commitKeyLayoutDefs();
+                };
+                input.addEventListener("blur", commit);
+                input.addEventListener("keydown", (ev) => { if (ev.key === "Enter") { ev.preventDefault(); input.blur(); } if (ev.key === "Escape") { input.remove(); } });
+            });
+
+            //scale handles
+            const edgeInset = isCanvas ? "2px" : "-3px";
+            const edges = [
+                { side: "right", cursor: "ew-resize", style: `position:absolute;right:${edgeInset};top:15%;width:6px;height:70%;cursor:ew-resize;` },
+                { side: "bottom", cursor: "ns-resize", style: `position:absolute;bottom:${edgeInset};left:15%;height:6px;width:70%;cursor:ns-resize;` },
+                { side: "left", cursor: "ew-resize", style: `position:absolute;left:${edgeInset};top:15%;width:6px;height:70%;cursor:ew-resize;` },
+                { side: "top", cursor: "ns-resize", style: `position:absolute;top:${edgeInset};left:15%;height:6px;width:70%;cursor:ns-resize;` },
+            ];
+            for (const edge of edges) {
+                const handle = document.createElement("div");
+                handle.className = `kl-edge-handle kl-edge-handle--${edge.side}`;
+                handle.style.cssText = edge.style + "z-index:150;";
+                handle.addEventListener("pointerdown", (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handle.setPointerCapture(e.pointerId);
+                    child.style.setProperty("transition", "none", "important");
+                    const def = this.keyLayoutDefs[defIdx];
+                    this._klDragState = {
+                        mode: `resize-${edge.side}`,
+                        defIdx, startX: e.clientX, startY: e.clientY,
+                        origW: def.w, origH: def.h, origX: def.x, origY: def.y,
+                        child,
+                    };
+                });
+                child.appendChild(handle);
+            }
+
+            //drag
+            child.addEventListener("pointerdown", (e) => {
+                if (e.target.classList.contains("kl-edge-handle") || e.target.classList.contains("kl-delete-btn") || e.target.classList.contains("kl-inline-label-edit")) return;
+                e.preventDefault();
+                child.setPointerCapture(e.pointerId);
+                child.style.setProperty("transition", "none", "important");
+                const def = this.keyLayoutDefs[defIdx];
+                this._klDragState = {
+                    mode: "move",
+                    defIdx, startX: e.clientX, startY: e.clientY,
+                    origX: def.x, origY: def.y,
+                    child,
+                };
+            });
+        });
+    }
+
+    _getPreviewContentScale() {
+        const wrapper = document.querySelector("#preview-wrapper > div");
+        if (!wrapper) return 0.75;
+        const s = getComputedStyle(wrapper).scale;
+        const n = parseFloat(s);
+        return isNaN(n) || n <= 0 ? 0.75 : n;
+    }
+
+    _onKlPointerMove(e) {
+        const ds = this._klDragState;
+        if (!ds) return;
+        const scale = this._getPreviewContentScale();
+        const dx = (e.clientX - ds.startX) / scale;
+        const dy = (e.clientY - ds.startY) / scale;
+        const U = 50, MIN = 0.25;
+        const gridPx = this._klGridPx || 0;
+        const snap = (v, g) => g > 0 ? Math.round(v / g) * g : Math.round(v);
+        const snapW = (px, g) => g > 0 ? Math.max(MIN * U, Math.round(px / g) * g) / U : Math.max(MIN, Math.round(px) / U);
+        const isCanvasWrap = ds.child.classList.contains("mousepad-wrap") || ds.child.classList.contains("joystick-wrap");
+
+        if (ds.mode === "move") {
+            const newX = snap(ds.origX + dx, gridPx);
+            const newY = snap(ds.origY + dy, gridPx);
+            ds.child.style.left = `${newX}px`;
+            ds.child.style.top = `${newY}px`;
+            ds._pendingX = newX;
+            ds._pendingY = newY;
+        } else if (ds.mode === "resize-right") {
+            const newW = snapW(ds.origW * U + dx, gridPx);
+            ds.child.style.setProperty("--key-width", `${newW * U}px`);
+            if (isCanvasWrap) ds.child.style.width = `${newW * U}px`;
+            ds._pendingW = newW;
+        } else if (ds.mode === "resize-bottom") {
+            const newH = snapW(ds.origH * U + dy, gridPx);
+            ds.child.style.setProperty("--key-height-modifier", String(newH));
+            if (isCanvasWrap) ds.child.style.height = `${newH * U}px`;
+            ds._pendingH = newH;
+        } else if (ds.mode === "resize-left") {
+            const newW = snapW(ds.origW * U - dx, gridPx);
+            const newX = snap(ds.origX + ds.origW * U - newW * U, gridPx);
+            ds.child.style.left = `${newX}px`;
+            ds.child.style.setProperty("--key-width", `${newW * U}px`);
+            if (isCanvasWrap) ds.child.style.width = `${newW * U}px`;
+            ds._pendingW = newW;
+            ds._pendingX = newX;
+        } else if (ds.mode === "resize-top") {
+            const newH = snapW(ds.origH * U - dy, gridPx);
+            const newY = snap(ds.origY + ds.origH * U - newH * U, gridPx);
+            ds.child.style.top = `${newY}px`;
+            ds.child.style.setProperty("--key-height-modifier", String(newH));
+            if (isCanvasWrap) ds.child.style.height = `${newH * U}px`;
+            ds._pendingH = newH;
+            ds._pendingY = newY;
+        }
+    }
+
+    _onKlPointerUp(e) {
+        const ds = this._klDragState;
+        if (!ds) return;
+        this._klDragState = null;
+        ds.child.style.removeProperty("transition");
+        const def = this.keyLayoutDefs[ds.defIdx];
+        if (!def) return;
+
+        let changed = false;
+        if (ds.mode === "move" && ds._pendingX != null) {
+            def.x = ds._pendingX; def.y = ds._pendingY; changed = true;
+        } else if (ds.mode === "resize-right" && ds._pendingW != null) {
+            def.w = ds._pendingW; changed = true;
+        } else if (ds.mode === "resize-bottom" && ds._pendingH != null) {
+            def.h = ds._pendingH; changed = true;
+        } else if (ds.mode === "resize-left" && ds._pendingW != null) {
+            def.w = ds._pendingW; def.x = ds._pendingX; changed = true;
+        } else if (ds.mode === "resize-top" && ds._pendingH != null) {
+            def.h = ds._pendingH; def.y = ds._pendingY; changed = true;
+        }
+        if (changed) this._commitKeyLayoutDefs();
+    }
+
+    _rowKeyStringToDef(rawKeyString) {
+        const item = this.layoutParser.parseElementDef(rawKeyString?.trim());
+        if (!item || item.type === "br" || item.type === "dummy") return null;
+
+        const parseUStr = (uStr) => {
+            if (!uStr) return 1;
+            const m = uStr.match(/^u(\d+)(?:-(\d+))?$/);
+            if (!m) return 1;
+            const dec = m[2] ? (m[2].length === 1 ? parseInt(m[2]) * 10 : parseInt(m[2])) : 0;
+            return parseInt(m[1]) + dec / 100;
+        };
+        const LEGACY_WIDTH_U = { "wide": 1.5, "extra-wide": 2, "super-wide": 3.4 };
+        const parseWFromClass = (cls) => {
+            if (!cls) return 1;
+            for (const t of cls.split(/\s+/)) {
+                if (LEGACY_WIDTH_U[t] !== undefined) return LEGACY_WIDTH_U[t];
+                if (/^u\d/.test(t)) return parseUStr(t);
+                const wm = t.match(/^w-(\d+)(?:-(\d+))?u$/);
+                if (wm) {
+                    const dec = wm[2] ? (wm[2].length === 1 ? parseInt(wm[2]) * 10 : parseInt(wm[2])) : 0;
+                    return parseInt(wm[1]) + dec / 100;
+                }
+            }
+            return 1;
+        };
+
+        switch (item.type) {
+            case "mouse_pad":
+                return { type: "mouse_pad", w: parseUStr(item.widthClass) || 5, h: parseUStr(item.heightClass) || 3, x: 0, y: 0 };
+            case "gp_joystick":
+                return {
+                    type: item.stickId === "gp_ls" ? "gp_joystick_ls" : "gp_joystick_rs",
+                    w: parseUStr(item.widthClass) || 3, h: parseUStr(item.heightClass || item.widthClass) || 3, x: 0, y: 0
+                };
+            case "scroller":
+                return { type: "scroller", labels: item.labels ?? ["M3", "🡅", "🡇"], w: parseWFromClass(item.class), h: 1, x: 0, y: 0 };
+            case "scroll_updown":
+                return { type: "scroll_updown", labels: item.labels ?? ["🡅", "🡇"], w: parseWFromClass(item.class), h: 1, x: 0, y: 0 };
+            case "scroll_up":
+                return { type: "scroll_up", label: item.label ?? "🡅", w: parseWFromClass(item.class), h: 1, x: 0, y: 0 };
+            case "scroll_down":
+                return { type: "scroll_down", label: item.label ?? "🡇", w: parseWFromClass(item.class), h: 1, x: 0, y: 0 };
+            case "mouse_side":
+                return { type: "mouse_side", labels: item.labels ?? ["M5", "M4"], w: parseWFromClass(item.class), h: 1, x: 0, y: 0 };
+            default: {
+                const isInvis = item.class?.includes("invisible") || item.label === "invis";
+                if (isInvis) {
+                    return { type: "$", w: parseWFromClass(item.class?.replace("invisible", "").trim()) || 1, h: 1, x: 0, y: 0 };
+                }
+                return {
+                    type: item.keys?.length > 1 ? item.keys.join("|") : (item.key || item.keys?.[0] || "key_a"),
+                    label: item.label ?? "",
+                    w: parseWFromClass(item.class),
+                    h: 1, x: 0, y: 0,
+                };
+            }
+        }
     }
 }
