@@ -162,11 +162,8 @@ h2 {
 
 h3 {
     font-size: 0.8rem;
-    font-weight: 400;
     margin: 12px 0 4px;
     color: var(--secondary-text);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
 }
 
 p {
@@ -231,9 +228,6 @@ li {
 
 .cfg-title-text {
     font-size: 17px;
-    font-weight: 400;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
     color: #fff;
 }
 
@@ -252,9 +246,6 @@ li {
     gap: 8px;
     padding: 7px 16px;
     font-size: 11px;
-    font-weight: 400;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
     color: var(--secondary-text);
     cursor: pointer;
     user-select: none;
@@ -309,15 +300,10 @@ li {
 
 .cfg-panel {
     padding: 14px 16px;
-    border-bottom: 1px solid var(--border-dark);
     background-color: var(--bg);
 }
 
 .cfg-panel-title {
-    font-size: 10px;
-    font-weight: 400;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
     color: var(--text-3);
     margin-bottom: 10px;
 }
@@ -334,7 +320,6 @@ li {
 
 .cfg-preview-panel {
     flex-shrink: 0;
-    border-bottom: 1px solid var(--border-dark);
     border-left: 1px solid var(--border-light);
     padding: 12px 16px;
     background: var(--bg);
@@ -343,9 +328,6 @@ li {
 .cfg-panel-hint {
     font-size: 10px;
     color: var(--text-3);
-    font-weight: 400;
-    letter-spacing: 0;
-    text-transform: none;
 }
 
 .preview-wrapper {
@@ -389,31 +371,54 @@ li {
     container-type: inline-size;
 }
 
-@container (max-width: 520px) {
-    .cfg-row1 {
-        grid-template-columns: 1fr;
-    }
-}
-
 .cfg-row1 {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    border-bottom: 1px solid var(--border-dark);
     flex: 1;
     min-height: 0;
-}
-
-.cfg-row1>.cfg-section {
-    padding: 14px 16px;
-    border-right: 1px solid var(--border-dark);
+    display: flex;
+    flex-direction: column;
+    padding: 16px;
     border-left: 1px solid var(--border-light);
-    border-top: 1px solid var(--border-light);
-    overflow-y: auto;
-    min-height: 0;
 }
 
-.cfg-row1>.cfg-section:last-child {
-    border-right: none;
+.cfg-main-tabs.cs-tabs {
+    flex: 1;
+    min-height: 0;
+    display: grid;
+    grid-template-rows: auto 1fr;
+    grid-template-columns: repeat(3, auto) 1fr;
+    row-gap: 0;
+    padding: 0;
+}
+
+.cfg-main-tabs.cs-tabs .label {
+    grid-row: 1;
+    padding: 5px 12px;
+    color: var(--text-3);
+    align-self: start;
+}
+
+.cfg-main-tabs.cs-tabs .radiotab:checked + .label {
+    color: var(--accent);
+    padding: 5px 12px;
+}
+
+.cfg-main-tabs.cs-tabs .radiotab:checked + .label::before {
+    background-color: var(--bg);
+}
+
+.cfg-main-tabs.cs-tabs .panel {
+    grid-row: 2;
+    grid-column: 1 / -1;
+    height: 100%;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 14px 16px;
+}
+
+.cfg-main-tabs.cs-tabs .radiotab:checked + .label + .panel {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
 }
 
 .cfg-row2 {
@@ -434,12 +439,7 @@ li {
 }
 
 .cfg-section-title {
-    font-size: 10px;
-    font-weight: 400;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
     color: var(--text-3);
-
 }
 
 .cfg-section {
@@ -472,12 +472,7 @@ li {
 
 .cfg-label {
     display: block;
-    font-size: 10px;
-    font-weight: 400;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
     color: var(--secondary-text);
-    margin-bottom: 4px;
     user-select: none;
 }
 
@@ -542,7 +537,6 @@ li {
     border: none;
     color: var(--accent);
     font-family: var(--font-ui);
-    font-size: 11px;
     padding: 0;
     cursor: pointer;
     white-space: nowrap;
@@ -663,7 +657,6 @@ li {
     display: flex;
     flex-direction: column;
     gap: 6px;
-    margin-top: 6px;
 }
 
 .cfg-checkbox {
@@ -741,6 +734,17 @@ li {
     display: flex;
     flex-direction: column;
     gap: 4px;
+}
+
+.cfg-slider-field::after {
+    content: "";
+    display: block;
+    height: 5px;
+    margin-top: 4px;
+    margin-left: 4px;
+    width: calc(100% - 4px + 5px);
+    background-image: linear-gradient(to right, var(--slider) 1px, transparent 1px);
+    background-size: 15px 5px;
 }
 
 .cfg-slider-header {
@@ -966,9 +970,6 @@ li {
 
 .key-list-table th {
     font-size: 10px;
-    font-weight: 400;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
     color: var(--text-3);
     background: var(--bg);
 }
@@ -999,10 +1000,7 @@ li {
 .key-add-popup-content h3 {
     margin: 0 0 14px;
     font-size: 12px;
-    font-weight: 400;
     color: var(--text);
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
 }
 
 .popup-buttons {
@@ -1283,7 +1281,7 @@ li {
     align-items: center;
     justify-content: space-between;
     margin-top: 3px;
-    padding-left: 2px;
+    padding-left: 10px;
 }
 
 .cs-dialog .heading .wrapper {
@@ -1908,7 +1906,9 @@ li {
 
 .key:hover .kl-delete-btn,
 .mousepad-wrap:hover .kl-delete-btn,
-.joystick-wrap:hover .kl-delete-btn {
+.joystick-wrap:hover .kl-delete-btn,
+.scroll-display:hover .kl-delete-btn,
+.mouse-side:hover .kl-delete-btn {
     display: flex;
 }
 
@@ -1923,7 +1923,9 @@ li {
 
 .key:hover .kl-edge-handle,
 .mousepad-wrap:hover .kl-edge-handle,
-.joystick-wrap:hover .kl-edge-handle {
+.joystick-wrap:hover .kl-edge-handle,
+.scroll-display:hover .kl-edge-handle,
+.mouse-side:hover .kl-edge-handle {
     opacity: 0.5;
 }
 
@@ -1935,23 +1937,167 @@ li {
 .kl-add-popup {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.5);
+    background: rgba(0, 0, 0, 0.55);
     display: flex;
     align-items: center;
     justify-content: center;
     z-index: 9999;
 }
 
-.kl-add-popup-content {
-    background: #1e1e1e;
-    border: 1px solid #444;
-    border-radius: 10px;
-    padding: 18px;
-    min-width: 240px;
+/* cs-dialog used as the add-element popup */
+.kl-add-popup .cs-dialog {
+    position: relative;
+    right: auto;
+    top: auto;
+    min-width: 380px;
+    max-width: 520px;
+    width: 90vw;
+    height: 460px;
     display: flex;
     flex-direction: column;
-    gap: 8px;
 }
+
+.kl-add-popup .cs-dialog .content {
+    padding: 4px 4px 0;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.kl-add-confirm {
+    flex: 1;
+}
+.kl-add-confirm:not(:disabled) {
+    background: var(--accent-dim);
+    border-color: var(--border-light) var(--border-dark) var(--border-dark) var(--border-light);
+    color: var(--accent);
+}
+
+/* cs16 tab overrides for the add popup */
+.kl-add-tabs.cs-tabs {
+    padding: 4px 4px 0;
+    flex: 1;
+    min-height: 0;
+    display: grid;
+    grid-template-rows: auto 1fr;
+    grid-template-columns: repeat(3, auto) 1fr;
+    row-gap: 0;
+    align-items: end;
+}
+
+.kl-add-tabs.cs-tabs .label {
+    grid-row: 1;
+    font-size: 11px;
+    height: auto;
+    line-height: 1.4;
+    padding: 3px 8px;
+    min-width: 0;
+    color: var(--text-3);
+}
+
+.kl-add-tabs.cs-tabs .radiotab:checked + .label {
+    height: auto;
+    padding: 3px 8px;
+    color: var(--accent);
+}
+
+.kl-add-tabs.cs-tabs .radiotab:checked + .label::before {
+    background-color: var(--bg);
+}
+
+.kl-add-tabs.cs-tabs .panel {
+    grid-row: 2;
+    grid-column: 1 / -1;
+    height: 100%;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 8px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-dark) transparent;
+}
+
+
+
+.kl-tile-group {
+    margin-bottom: 8px;
+}
+
+.kl-tile-group-label {
+    font-size: 9px;
+    color: var(--text-3);
+    margin-bottom: 3px;
+    padding-left: 1px;
+}
+
+.kl-add-tile {
+    display: inline-block;
+    background: var(--bg);
+    border: 1px solid;
+    border-color: var(--border-light) var(--border-dark) var(--border-dark) var(--border-light);
+    color: var(--text);
+    font-size: 11px;
+    font-family: var(--font-ui);
+    padding: 2px 5px;
+    margin: 2px 1px;
+    cursor: pointer;
+    min-width: 32px;
+    text-align: center;
+    user-select: none;
+}
+.kl-add-tile[data-span="2"] { min-width: 66px; }
+.kl-add-tile[data-span="3"] { min-width: 100px; }
+.kl-add-tile:hover {
+    background: var(--secondary-accent);
+    color: #fff;
+}
+.kl-add-tile--selected {
+    background: var(--accent-dim);
+    border-color: var(--border-dark) var(--border-light) var(--border-light) var(--border-dark);
+    color: var(--accent);
+}
+.kl-add-tile:disabled {
+    color: var(--disabled-text);
+    text-shadow: var(--disabled-text-shadow) 1px 1px;
+    pointer-events: none;
+}
+
+.kl-add-props {
+    padding: 7px 10px 8px;
+    flex-shrink: 0;
+    margin-top: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+#klAddLabelRow {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.kl-add-label-inputs {
+    display: flex;
+    gap: 5px;
+    flex: 1;
+}
+
+
+.kl-add-btm-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.kl-add-dim {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.kl-add-dim .cfg-label { white-space: nowrap; }
+.kl-add-dim .cfg-input { width: 48px; }
 
 .cfg-hint {
     font-size: 10px;
@@ -2067,8 +2213,6 @@ li {
 
 .tree-view>li>details>summary {
     font-size: 10px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
     color: var(--text-3);
 }
 
@@ -2133,8 +2277,6 @@ li {
     width: 38px;
     flex-shrink: 0;
     text-align: right;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
 }
 
 .kl-tree-attr-input {

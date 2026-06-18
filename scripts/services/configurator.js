@@ -1234,9 +1234,6 @@ export class ConfiguratorMode {
 
         const klEditor = document.getElementById("klEditor");
         const klAddBtn = document.getElementById("klAddKeyBtn");
-        const klAddPopup = document.getElementById("klAddPopup");
-        const klAddCancelBtn = document.getElementById("klAddCancelBtn");
-        const klAddConfirmBtn = document.getElementById("klAddConfirmBtn");
         const klClearBtn = document.getElementById("klClearBtn");
 
         if (!klEditor) return;
@@ -1246,36 +1243,10 @@ export class ConfiguratorMode {
             this._commitKeyLayoutDefs();
         });
 
+        this._setupKlAddPopup();
+
         klAddBtn?.addEventListener("click", () => {
-            if (this._openPopupForAdd) this._openPopupForAdd("KlMode", klAddBtn);
-            else if (klAddPopup) klAddPopup.style.display = "flex";
-        });
-
-        klAddCancelBtn?.addEventListener("click", () => {
-            if (klAddPopup) klAddPopup.style.display = "none";
-        });
-
-        klAddConfirmBtn?.addEventListener("click", () => {
-            const typeEl = document.getElementById("klAddType");
-            const labelEl = document.getElementById("klAddLabel");
-            if (!typeEl) return;
-            const type = typeEl.value;
-            const arity = this.keyLayoutParser.getLabelArity(type);
-            const def = { type, w: 1, h: 1, x: LAYOUT_ORIGIN.x, y: LAYOUT_ORIGIN.y };
-            if (type === "mouse_pad" || type === "gp_joystick_ls" || type === "gp_joystick_rs") { def.w = 3; def.h = 3; }
-            if (arity === 1) def.label = labelEl?.value || type.split("_").pop().toUpperCase();
-            else if (arity > 1) {
-                const defaults = { scroller: ["M3", "🡅", "🡇"], scroll_updown: ["🡅", "🡇"], mouse_side: ["M5", "M4"] };
-                def.labels = defaults[type] || Array(arity).fill("");
-            }
-            if (this.keyLayoutDefs.length) {
-                const last = this.keyLayoutDefs[this.keyLayoutDefs.length - 1];
-                def.x = last.x + last.w * 50 + 4;
-                def.y = last.y;
-            }
-            this.keyLayoutDefs.push(def);
-            if (klAddPopup) klAddPopup.style.display = "none";
-            this._commitKeyLayoutDefs();
+            this._openKlAddPopup?.();
         });
 
         //grid snapper
@@ -1293,6 +1264,253 @@ export class ConfiguratorMode {
         document.addEventListener("pointerup", (e) => this._onKlPointerUp(e));
 
         this._syncKeyLayoutEditorUI();
+    }
+
+    _setupKlAddPopup() {
+        const popup      = document.getElementById("klAddPopup");
+        const tabsEl     = document.getElementById("klAddTabs");
+        const labelRow   = document.getElementById("klAddLabelRow");
+        const labelHdr   = document.getElementById("klAddLabelHdr");
+        const labelsEl   = document.getElementById("klAddLabelInputs");
+        const wInput     = document.getElementById("klAddW");
+        const hInput     = document.getElementById("klAddH");
+        const confirmBtn = document.getElementById("klAddConfirmBtn");
+        if (!popup || !tabsEl) return;
+
+        const LABEL_DEFAULTS = {
+            scroller:      ["M3", "🡅", "🡇"],
+            scroll_updown: ["🡅", "🡇"],
+        };
+
+        const SIZE_DEFAULTS = {
+            mouse_pad:     [5, 3.5],
+            gp_joystick_ls: [3, 3],
+            gp_joystick_rs: [3, 3],
+        };
+
+        const CATS = [
+            { id: "keyboard", label: "keyboard", groups: [
+                { label: "letters", tiles: [..."abcdefghijklmnopqrstuvwxyz"].map(l => [`key_${l}`, l.toUpperCase()]) },
+                { label: "numbers", tiles: [..."1234567890"].map(n => [`key_${n}`, n]) },
+                { label: "modifiers", tiles: [
+                    ["key_leftshift","L⇧"], ["key_rightshift","R⇧"],
+                    ["key_leftctrl","L^"], ["key_rightctrl","R^"],
+                    ["key_leftalt","LAlt"], ["key_rightalt","RAlt"],
+                    ["key_leftwin","Win"], ["key_menu","Menu"],
+                    ["key_capslock","Caps"], ["key_tab","Tab"], ["key_escape","Esc"],
+                ]},
+                { label: "editing", tiles: [
+                    ["key_space","Space",3], ["key_enter","Enter",2], ["key_backspace","BS",2],
+                    ["key_delete","Del"], ["key_insert","Ins"],
+                    ["key_home","Home"], ["key_end","End"],
+                    ["key_pageup","PgUp"], ["key_pagedown","PgDn"],
+                ]},
+                { label: "arrows", tiles: [
+                    ["key_leftarrow","←"], ["key_uparrow","↑"], ["key_downarrow","↓"], ["key_rightarrow","→"],
+                ]},
+                { label: "function", tiles: Array.from({length: 12}, (_, i) => [`key_f${i+1}`, `F${i+1}`]) },
+                { label: "symbols", tiles: [
+                    ["key_minus","-"], ["key_equals","="], ["key_openbracket","["], ["key_closebracket","]"],
+                    ["key_backslash","\\"], ["key_semicolon",";"], ["key_apostrophe","'"],
+                    ["key_comma",","], ["key_period","."], ["key_slash","/"],
+                ]},
+                { label: "numpad", tiles: [
+                    ["key_numpad_7","7"], ["key_numpad_8","8"], ["key_numpad_9","9"], ["key_numpad_divide","÷"],
+                    ["key_numpad_4","4"], ["key_numpad_5","5"], ["key_numpad_6","6"], ["key_numpad_multiply","×"],
+                    ["key_numpad_1","1"], ["key_numpad_2","2"], ["key_numpad_3","3"], ["key_numpad_subtract","−"],
+                    ["key_numpad_0","0",2], ["key_numpad_decimal","."], ["key_numpad_add","+"],
+                    ["key_numpad_enter","Ent"], ["key_numlock","NL"],
+                ]},
+            ]},
+            { id: "mouse", label: "mouse", groups: [
+                { label: "buttons", tiles: [
+                    ["mouse_left","M1"], ["mouse_right","M2"], ["mouse_middle","M3"],
+                    ["mouse_4","M4"], ["mouse_5","M5"],
+                ]},
+                { label: "scroll", tiles: [
+                    ["scroller","wheel"], ["scroll_updown","↑↓"], ["scroll_up","↑"], ["scroll_down","↓"],
+                ]},
+                { label: "pad", tiles: [
+                    ["mouse_pad","mouse pad",3],
+                ]},
+            ]},
+            { id: "gamepad", label: "gamepad", groups: [
+                { label: "face", tiles: [["gp_a","A"],["gp_b","B"],["gp_x","X"],["gp_y","Y"]] },
+                { label: "shoulders", tiles: [["gp_lb","LB"],["gp_rb","RB"],["gp_lt","LT"],["gp_rt","RT"]] },
+                { label: "d-pad", tiles: [["gp_up","↑"],["gp_down","↓"],["gp_left","←"],["gp_right","→"]] },
+                { label: "system", tiles: [
+                    ["gp_select","Back"],["gp_start","Menu"],["gp_guide","Home"],["gp_ls","LS"],["gp_rs","RS"],
+                ]},
+                { label: "sticks", tiles: [
+                    ["gp_joystick_ls","L stick",2], ["gp_joystick_rs","R stick",2],
+                ]},
+            ]},
+        ];
+
+        const NO_MULTIBIND = new Set(["mouse_pad", "gp_joystick_ls", "gp_joystick_rs"]);
+        let selectedTypes = [];
+
+        CATS.forEach((cat, ci) => {
+            const radio = document.createElement("input");
+            radio.type = "radio";
+            radio.className = "radiotab";
+            radio.name = "klAddTab";
+            radio.id = `klTab_${cat.id}`;
+            if (ci === 0) radio.defaultChecked = true;
+            tabsEl.appendChild(radio);
+
+            const lbl = document.createElement("label");
+            lbl.className = "label";
+            lbl.htmlFor = `klTab_${cat.id}`;
+            lbl.textContent = cat.label;
+            tabsEl.appendChild(lbl);
+
+            const panel = document.createElement("div");
+            panel.className = "panel";
+
+            cat.groups.forEach(group => {
+                const groupEl = document.createElement("div");
+                groupEl.className = "kl-tile-group";
+
+                const groupLbl = document.createElement("div");
+                groupLbl.className = "kl-tile-group-label";
+                groupLbl.textContent = group.label;
+                groupEl.appendChild(groupLbl);
+
+                group.tiles.forEach(([type, name, span]) => {
+                    const btn = document.createElement("button");
+                    btn.className = "kl-add-tile" + (selectedTypes.includes(type) ? " kl-add-tile--selected" : "");
+                    btn.dataset.type = type;
+                    btn.dataset.name = name;
+                    btn.textContent = name;
+                    btn.title = type;
+                    if (span > 1) btn.dataset.span = span;
+                    groupEl.appendChild(btn);
+                });
+
+                panel.appendChild(groupEl);
+            });
+
+            tabsEl.appendChild(panel);
+        });
+
+        const primaryType = () => selectedTypes[0] ?? null;
+        const primaryName = () => tabsEl.querySelector(`.kl-add-tile[data-type="${primaryType()}"]`)?.dataset.name ?? primaryType() ?? "";
+
+        const updateConfirmState = () => {
+            if (confirmBtn) confirmBtn.disabled = selectedTypes.length === 0;
+        };
+
+        const updateLabels = () => {
+            const type = primaryType();
+            if (!type) { labelRow.style.display = "none"; labelsEl.innerHTML = ""; return; }
+            const arity = this.keyLayoutParser.getLabelArity(type);
+            const defs = LABEL_DEFAULTS[type];
+            if (arity === 0) {
+                labelRow.style.display = "none";
+                labelsEl.innerHTML = "";
+            } else {
+                labelRow.style.display = "flex";
+                labelHdr.textContent = arity === 1 ? "label" : "labels";
+                labelsEl.innerHTML = "";
+                for (let i = 0; i < arity; i++) {
+                    const inp = document.createElement("input");
+                    inp.className = "cfg-input";
+                    inp.type = "text";
+                    inp.style.flex = "1";
+                    inp.value = defs?.[i] ?? (i === 0 ? primaryName() : "");
+                    inp.placeholder = i === 0 ? "label" : `label ${i + 1}`;
+                    labelsEl.appendChild(inp);
+                }
+            }
+        };
+
+        const updateSize = () => {
+            const sd = SIZE_DEFAULTS[primaryType()];
+            wInput.value = sd ? sd[0] : 1;
+            hInput.value = sd ? sd[1] : 1;
+        };
+
+        const updateDisabledTiles = () => {
+            const primary = primaryType();
+            const primaryIsCanvas = primary ? NO_MULTIBIND.has(primary) : false;
+            tabsEl.querySelectorAll(".kl-add-tile").forEach(btn => {
+                const type = btn.dataset.type;
+                if (selectedTypes.includes(type)) { btn.disabled = false; return; }
+                btn.disabled = primaryIsCanvas || (primary !== null && NO_MULTIBIND.has(type));
+            });
+        };
+
+        const toggleTile = (type, btn) => {
+            const idx = selectedTypes.indexOf(type);
+            const wasEmpty = selectedTypes.length === 0;
+            if (idx === -1) {
+                selectedTypes.push(type);
+                btn?.classList.add("kl-add-tile--selected");
+            } else {
+                selectedTypes.splice(idx, 1);
+                btn?.classList.remove("kl-add-tile--selected");
+            }
+            updateDisabledTiles();
+            updateConfirmState();
+            if (wasEmpty || idx === 0) { updateLabels(); updateSize(); }
+        };
+
+        updateLabels();
+        updateSize();
+        updateDisabledTiles();
+        updateConfirmState();
+
+        tabsEl.addEventListener("click", e => {
+            const tile = e.target.closest(".kl-add-tile");
+            if (!tile) return;
+            toggleTile(tile.dataset.type, tile);
+        });
+
+        const close = () => { popup.style.display = "none"; };
+
+        confirmBtn?.addEventListener("click", () => {
+            const type = primaryType();
+            const arity = this.keyLayoutParser.getLabelArity(type);
+            const w = Math.max(0.25, parseFloat(wInput.value) || 1);
+            const h = Math.max(0.25, parseFloat(hInput.value) || 1);
+            const compositeType = selectedTypes.join("|");
+            const def = { type: compositeType, w, h, x: LAYOUT_ORIGIN.x, y: LAYOUT_ORIGIN.y };
+
+            if (arity === 1) {
+                const inp = labelsEl.querySelector("input");
+                def.label = inp?.value || primaryName();
+            } else if (arity > 1) {
+                const inps = labelsEl.querySelectorAll("input");
+                const defs = LABEL_DEFAULTS[type] || [];
+                def.labels = Array.from(inps).map((inp, i) => inp.value || defs[i] || "");
+            }
+
+            if (this.keyLayoutDefs.length) {
+                const last = this.keyLayoutDefs[this.keyLayoutDefs.length - 1];
+                def.x = last.x + last.w * 50 + 4;
+                def.y = last.y;
+            }
+
+            this.keyLayoutDefs.push(def);
+            close();
+            this._commitKeyLayoutDefs();
+        });
+
+        document.getElementById("klAddCancelBtn")?.addEventListener("click", close);
+        document.getElementById("klAddCancelBtn2")?.addEventListener("click", close);
+        popup.addEventListener("click", e => { if (e.target === popup) close(); });
+
+        this._openKlAddPopup = () => {
+            popup.style.display = "flex";
+            tabsEl.querySelectorAll(".panel").forEach(p => { p.scrollTop = 0; });
+            selectedTypes = [];
+            tabsEl.querySelectorAll(".kl-add-tile--selected").forEach(t => t.classList.remove("kl-add-tile--selected"));
+            tabsEl.querySelectorAll(".kl-add-tile").forEach(t => { t.disabled = false; });
+            updateLabels();
+            updateSize();
+            updateConfirmState();
+        };
     }
 
     _setupPreviewZoomAndGrid() {
