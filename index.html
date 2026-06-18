@@ -37,7 +37,7 @@
         </div>
     </div>
     <div id="configurator">
-        <aside class="cfg-sidebar">
+        <aside class="cfg-sidebar" id="cfg-sidebar">
             <div class="cfg-title">
                 <img src="media/favicon.png" width="54" alt="" />
                 <span class="cfg-title-text">INPUT OVERLAY</span>
@@ -127,6 +127,7 @@
                 </div>
             </div>
         </aside>
+        <button class="cfg-panel-toggle" id="leftPanelToggle" title="toggle panel">‹</button>
         <main class="cfg-main">
             <section class="cfg-panel cfg-preview-panel">
                 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
@@ -180,12 +181,26 @@
                     <input type="radio" class="radiotab" name="cfgMainTab" id="cfgMainTab_style" checked>
                     <label class="label" for="cfgMainTab_style">style</label>
                     <div class="panel">
-                        <div class="cfg-slider-pair">
+                        <div class="cfg-color-grid">
                             <div class="cfg-field">
                                 <label class="cfg-label" for="activebgcolorhex">active key bg</label>
                                 <div class="color-input-group">
                                     <div id="activebgcolor" class="config-input pickr-target" data-initial-color="#202020"></div>
                                     <input id="activebgcolorhex" class="cfg-input cfg-input--color config-input color-hex-input" type="text" maxlength="9" value="#202020">
+                                </div>
+                            </div>
+                            <div class="cfg-field">
+                                <label class="cfg-label" for="fontcolorhex">active font color</label>
+                                <div class="color-input-group">
+                                    <div id="fontcolor" class="config-input pickr-target" data-initial-color="#ffffff"></div>
+                                    <input id="fontcolorhex" class="cfg-input cfg-input--color config-input color-hex-input" type="text" maxlength="9" value="#ffffff">
+                                </div>
+                            </div>
+                            <div class="cfg-field">
+                                <label class="cfg-label" for="activecolorhex">glow color</label>
+                                <div class="color-input-group">
+                                    <div id="activecolor" class="config-input pickr-target" data-initial-color="#8b5cf6"></div>
+                                    <input id="activecolorhex" class="cfg-input cfg-input--color config-input color-hex-input" type="text" maxlength="9" value="#8b5cf6">
                                 </div>
                             </div>
                             <div class="cfg-field">
@@ -195,29 +210,11 @@
                                     <input id="backgroundcolorhex" class="cfg-input cfg-input--color config-input color-hex-input" type="text" maxlength="9" value="#1a1a1ad1">
                                 </div>
                             </div>
-                        </div>
-                        <div class="cfg-slider-pair">
-                            <div class="cfg-field">
-                                <label class="cfg-label" for="fontcolorhex">active font color</label>
-                                <div class="color-input-group">
-                                    <div id="fontcolor" class="config-input pickr-target" data-initial-color="#ffffff"></div>
-                                    <input id="fontcolorhex" class="cfg-input cfg-input--color config-input color-hex-input" type="text" maxlength="9" value="#ffffff">
-                                </div>
-                            </div>
                             <div class="cfg-field">
                                 <label class="cfg-label" for="inactivecolorhex">inactive font color</label>
                                 <div class="color-input-group">
                                     <div id="inactivecolor" class="config-input pickr-target" data-initial-color="#808080"></div>
                                     <input id="inactivecolorhex" class="cfg-input cfg-input--color config-input color-hex-input" type="text" maxlength="9" value="#808080">
-                                </div>
-                            </div>
-                        </div>
-                        <div class="cfg-slider-pair">
-                            <div class="cfg-field">
-                                <label class="cfg-label" for="activecolorhex">glow color</label>
-                                <div class="color-input-group">
-                                    <div id="activecolor" class="config-input pickr-target" data-initial-color="#8b5cf6"></div>
-                                    <input id="activecolorhex" class="cfg-input cfg-input--color config-input color-hex-input" type="text" maxlength="9" value="#8b5cf6">
                                 </div>
                             </div>
                             <div class="cfg-field">
@@ -434,6 +431,7 @@
                 </div>
             </div>
         </main>
+        <button class="cfg-panel-toggle" id="rightPanelToggle" title="toggle panel">›</button>
         <aside class="cfg-layout-sidebar" id="cfg-layout-sidebar">
             <div class="cfg-title" style="padding:12px 14px 8px;flex-shrink:0;border-left: none !important;">
                 <span class="cfg-title-text">ELEMENTS</span>

@@ -177,6 +177,7 @@ export class ConfiguratorMode {
         this.setupAnalogSense();
         this.setupKeyLayoutEditor();
         this._setupPreviewZoomAndGrid();
+        this._setupSidebarToggles();
         this.updateState();
 
         //tiny delay for gamepads because im lazy
@@ -2083,5 +2084,75 @@ export class ConfiguratorMode {
                 };
             }
         }
+    }
+
+    _setupSidebarToggles() {
+        const THRESHOLD = 960;
+        const cfg = document.getElementById("configurator");
+        const panels = [
+            { sidebarId: "cfg-sidebar", dir: "left", stripId: "leftPanelToggle" },
+            { sidebarId: "cfg-layout-sidebar", dir: "right", stripId: "rightPanelToggle" },
+        ];
+
+        panels.forEach(p => {
+            p.el = document.getElementById(p.sidebarId);
+            p.strip = document.getElementById(p.stripId);
+            p.manualOpen = false;
+
+            p.strip.addEventListener("click", () => {
+                const narrow = cfg.offsetWidth < THRESHOLD;
+                const willCollapse = !p.el.classList.contains("collapsed");
+                p.el.classList.toggle("collapsed");
+                if (narrow) p.manualOpen = !willCollapse;
+                this._updatePanelToggleArrow(p);
+                this._animatePanelToggles(panels, cfg);
+            });
+
+            this._updatePanelToggleArrow(p);
+        });
+
+        new ResizeObserver(([entry]) => {
+            const narrow = entry.contentRect.width < THRESHOLD;
+            panels.forEach(p => {
+                if (narrow && !p.manualOpen) {
+                    p.el.classList.add("collapsed");
+                } else if (!narrow) {
+                    p.el.classList.remove("collapsed");
+                    p.manualOpen = false;
+                }
+                this._updatePanelToggleArrow(p);
+            });
+            this._animatePanelToggles(panels, cfg);
+        }).observe(cfg);
+
+        requestAnimationFrame(() => this._positionPanelToggles(panels, cfg));
+    }
+
+    _animatePanelToggles(panels, cfg) {
+        const end = performance.now() + 200;
+        const tick = (now) => {
+            this._positionPanelToggles(panels, cfg);
+            if (now < end) requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+    }
+
+    _positionPanelToggles(panels, cfg) {
+        const cfgRect = cfg.getBoundingClientRect();
+        panels.forEach(({ el, strip, dir }) => {
+            const r = el.getBoundingClientRect();
+            if (dir === "left") {
+                strip.style.left = (r.right - cfgRect.left) + "px";
+                strip.style.right = "";
+            } else {
+                strip.style.right = (cfgRect.right - r.left) + "px";
+                strip.style.left = "";
+            }
+        });
+    }
+
+    _updatePanelToggleArrow({ strip, el, dir }) {
+        const col = el.classList.contains("collapsed");
+        strip.textContent = dir === "left" ? (col ? "›" : "‹") : (col ? "‹" : "›");
     }
 }
