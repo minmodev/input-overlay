@@ -1616,10 +1616,10 @@ export class ConfiguratorMode {
             ["key_leftctrl", "CTRL", 1.5, 1, 0, 168.75],
             ["key_leftalt", "ALT", 1.5, 1, 81.25, 168.75],
             ["key_space", "SPACE", 3.25, 1, 162.5, 168.75],
+            ["mouse_pad", 5, 3.63, 331.25, 37.5],
             ["mouse_left", "M1", 1.625, 0.63, 331.25, 0],
             ["scroller", "M3", "🡅", "🡇", 1.5, 0.63, 418.75, 0],
             ["mouse_right", "M2", 1.625, 0.63, 500, 0],
-            ["mouse_pad", 5, 3.63, 331.25, 37.5],
         ];
         return this.keyLayoutParser.parseAll(tuples);
     }
