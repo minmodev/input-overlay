@@ -223,7 +223,7 @@ export class OverlayVisualiser {
         const activeTransform = this.analogMode ? "scaleX(1) scaleY(1)" : `scaleX(${pressscalevalue}) scaleY(${pressscalevalue})`;
         const transitionStyle = this.analogMode
             ? `color ${animDuration} cubic-bezier(0.4,0,0.2,1), border-color ${animDuration} cubic-bezier(0.4,0,0.2,1), box-shadow ${animDuration} cubic-bezier(0.4,0,0.2,1)`
-            : `all ${animDuration} cubic-bezier(0.4,0,0.2,1)`;
+            : `transform ${animDuration} cubic-bezier(0.4,0,0.2,1), border-radius ${animDuration} cubic-bezier(0.4,0,0.2,1), color ${animDuration} cubic-bezier(0.4,0,0.2,1), border-color ${animDuration} cubic-bezier(0.4,0,0.2,1), box-shadow ${animDuration} cubic-bezier(0.4,0,0.2,1), background ${animDuration} cubic-bezier(0.4,0,0.2,1), border-width ${animDuration} cubic-bezier(0.4,0,0.2,1)`;
 
         const fontColorInt = parseInt(opts.fontcolor.replace("#", ""), 16);
         const shadowColor = (fontColorInt > 0xFFFFFF / 2 ? "#000000" : "#ffffff") + "ff";
@@ -796,11 +796,8 @@ export class OverlayVisualiser {
             const radius = this.borderRadius + (this.pressedRadius - this.borderRadius) * effectiveDepth;
             el.style.setProperty("border-radius", `${radius.toFixed(2)}px`, "important");
 
-            const isDigitallyPressed = this.activeKeys.has(keyName) || this.activeGamepadButtons?.has(keyName);
             const fillHeight = effectiveDepth * 100;
-            const borderWidth = isDigitallyPressed
-                ? unpressedWidth + (pressedWidth - unpressedWidth) * Math.min(1, depth * 3)
-                : unpressedWidth;
+            const borderWidth = unpressedWidth + (pressedWidth - unpressedWidth) * effectiveDepth;
 
             el.style.setProperty("border-width", `${borderWidth}px`, "important");
 
