@@ -1,9 +1,10 @@
 //guh
-import {WebSocketManager} from "./webSocketManager.js";
-import {GamepadManager} from "./gamepadManager.js";
+import { WebSocketManager } from "./webSocketManager.js";
+import { GamepadManager } from "./gamepadManager.js";
+import { convertLegacyRows } from "./configurator.js";
 
 export class OverlayMode {
-    constructor(utils, urlManager, layoutParser, visualizer) {
+    constructor(utils, urlManager, layoutParser, visualizer, keyLayoutParser = null) {
         this.urlManager = urlManager;
         this.visualizer = visualizer;
 
@@ -14,11 +15,26 @@ export class OverlayMode {
 
         const settings = this.urlManager.getOverlaySettings();
 
+        if (!settings.keyLayout && keyLayoutParser && layoutParser) {
+            const hasLegacy = ["customLayoutRow1", "customLayoutRow2", "customLayoutRow3",
+                "customLayoutRow4", "customLayoutRow5", "customLayoutMouse"].some(k => settings[k]);
+            if (hasLegacy) {
+                const defs = convertLegacyRows(settings, layoutParser);
+                if (defs.length) settings.keyLayout = JSON.stringify(keyLayoutParser.serializeAll(defs));
+            }
+        }
+
         requestAnimationFrame(() => {
             this.visualizer.applyStyles(settings);
             this.visualizer.rebuildInterface(settings);
 
-            const wsOnlyGamepad = !layoutParser.needsWebSocket(settings);
+            let wsOnlyGamepad;
+            if (settings.keyLayout && keyLayoutParser) {
+                let tuples = keyLayoutParser.decompressTuples(settings.keyLayout);
+                if (!tuples) { try { tuples = JSON.parse(settings.keyLayout); } catch { tuples = null; } }
+                const defs = tuples ? keyLayoutParser.parseAll(tuples) : [];
+                wsOnlyGamepad = !keyLayoutParser.needsWebSocket(defs);
+            }
 
             if (!wsOnlyGamepad) {
                 const wsConfig = (this.urlManager.urlParams.get("ws") || "").split(":");

@@ -1,7 +1,7 @@
 export class OverlayVisualiser {
-    constructor(utils, layoutParser) {
+    constructor(utils, layoutParser, keyLayoutParser = null) {
         this.utils = utils;
-        this.layoutParser = layoutParser;
+        this.keyLayoutParser = keyLayoutParser;
         this.previewElements = null;
         this.activeKeys = new Set();
         this.activeMouseButtons = new Set();
@@ -63,7 +63,6 @@ export class OverlayVisualiser {
 
             el.classList.add("active");
             this.activeElements.add(el);
-            el.style.zIndex = (++this.Z_INDEX_COUNTER).toString();
 
             if (this.analogMode && (keyName.startsWith("key_") || keyName === "gp_lt" || keyName === "gp_rt")) {
                 el.classList.add("analog-key");
@@ -92,9 +91,12 @@ export class OverlayVisualiser {
                 el.querySelector(".key-label-primary")?.style.removeProperty("color");
                 const inv = el.querySelector(".key-label-inverted");
                 if (inv) inv.style.clipPath = "inset(100% 0 0 0)";
-                if (this._digitalPressKeys.delete(keyName)) this.setAnalogDepthTarget(keyName, 0);
+                if (this._digitalPressKeys.delete(keyName)) {
+                    delete this.analogCurrentDepths[keyName];
+                    delete this.analogTargetDepths[keyName];
+                    this._renderAnalogDepth(keyName, 0);
+                }
             } else if (keyName === "gp_lt" || keyName === "gp_rt") {
-                document.getElementById(`analog-depth-${el.dataset.key}`)?.remove();
                 el.style.setProperty("transform", "scale(1)", "important");
                 el.querySelector(".key-label-primary")?.style.removeProperty("color");
                 const inv = el.querySelector(".key-label-inverted");
@@ -116,6 +118,7 @@ export class OverlayVisualiser {
     }
 
     applyStyles(opts) {
+        this._cachedOpts = opts;
         const pressscalevalue = parseInt(opts.pressscale) / 100;
         const animDuration = `${0.15 * (100 / parseInt(opts.animationspeed))}s`;
         const activeColorRgb = this.utils.hexToRgba(opts.activecolor, 1);
@@ -136,6 +139,8 @@ export class OverlayVisualiser {
         this.fontColor = opts.fontcolor;
         this.outlineScalePressed = parseFloat(opts.outlinescalepressed ?? opts.outlineScalePressed ?? 1);
         this.outlineScaleUnpressed = parseFloat(opts.outlinescaleunpressed ?? opts.outlineScaleUnpressed ?? 1);
+        this.borderRadius = parseFloat(opts.borderradius ?? 8);
+        this.pressedRadius = parseFloat(opts.pressedradius ?? opts.borderradius ?? 8);
         this.keyLegendMode = opts.keylegendmode || "fading";
         this.forceDisableAnalog = opts.forcedisableanalog === true || opts.forcedisableanalog === "true" || opts.forcedisableanalog === "1";
 
@@ -217,8 +222,8 @@ export class OverlayVisualiser {
 
         const activeTransform = this.analogMode ? "scaleX(1) scaleY(1)" : `scaleX(${pressscalevalue}) scaleY(${pressscalevalue})`;
         const transitionStyle = this.analogMode
-            ? `color ${animDuration} cubic-bezier(0.4,0,0.2,1), border-color ${animDuration} cubic-bezier(0.4,0,0.2,1), box-shadow ${animDuration} cubic-bezier(0.4,0,0.2,1), transform 0.05s cubic-bezier(0.4,0,0.2,1)`
-            : `all ${animDuration} cubic-bezier(0.4,0,0.2,1)`;
+            ? `color ${animDuration} cubic-bezier(0.4,0,0.2,1), border-color ${animDuration} cubic-bezier(0.4,0,0.2,1), box-shadow ${animDuration} cubic-bezier(0.4,0,0.2,1)`
+            : `transform ${animDuration} cubic-bezier(0.4,0,0.2,1), border-radius ${animDuration} cubic-bezier(0.4,0,0.2,1), color ${animDuration} cubic-bezier(0.4,0,0.2,1), border-color ${animDuration} cubic-bezier(0.4,0,0.2,1), box-shadow ${animDuration} cubic-bezier(0.4,0,0.2,1), background ${animDuration} cubic-bezier(0.4,0,0.2,1), border-width ${animDuration} cubic-bezier(0.4,0,0.2,1)`;
 
         const fontColorInt = parseInt(opts.fontcolor.replace("#", ""), 16);
         const shadowColor = (fontColorInt > 0xFFFFFF / 2 ? "#000000" : "#ffffff") + "ff";
@@ -235,9 +240,10 @@ export class OverlayVisualiser {
                 border-radius: ${opts.borderradius}px !important;
                 color: ${opts.inactivecolor} !important;
                 background: ${opts.backgroundcolor} !important;
+                background-clip: padding-box !important;
                 border-color: ${opts.outlinecolor} !important;
                 transition: ${transitionStyle} !important;
-                position: relative !important;
+                position: relative;
                 font-weight: ${fontWeight} !important;
                 display: flex !important;
                 align-items: center !important;
@@ -245,18 +251,9 @@ export class OverlayVisualiser {
                 border-width: ${opts.outlinescaleunpressed ?? 1}px !important;
                 transform: translateY(0) scaleX(1) scaleY(1) !important;
             }
-            .key, .mouse-btn { overflow: hidden !important; }
+            .key, .mouse-btn { overflow: hidden; }
             .scroll-display { overflow: visible !important; }
-            .key::after, .mouse-btn::after {
-                content: '';
-                position: absolute;
-                bottom: 0; left: 0; right: 0;
-                height: 0%;
-                background: ${opts.activebgcolor};
-                z-index: -1;
-                pointer-events: none;
-            }
-            .key, .mouse-btn { z-index: 1; }
+            .key, .mouse-btn { z-index: 1; isolation: isolate; }
             .key > *, .mouse-btn > * { position: relative; z-index: 2; }
             .key-label-primary {
                 display: flex;
@@ -276,6 +273,7 @@ export class OverlayVisualiser {
                 z-index: 3;
             }
             .key.active, .mouse-btn.active, .scroll-display.active {
+                border-radius: ${opts.pressedradius ?? opts.borderradius}px !important;
                 color: ${opts.fontcolor} !important;
                 transform: ${activeTransform} !important;
                 border-color: ${opts.activecolor} !important;
@@ -379,11 +377,11 @@ export class OverlayVisualiser {
         return { el, m4El, m5El };
     }
 
-    buildInterface(keyboardContainer, mouseContainer, layoutDef, mouseLayoutDef) {
-        if (!keyboardContainer || !mouseContainer || !layoutDef) return null;
+    buildFromKeyLayout(container, defs) {
+        if (!container) return null;
 
-        keyboardContainer.innerHTML = "";
-        mouseContainer.innerHTML = "";
+        container.innerHTML = "";
+        container.style.position = "relative";
 
         const keyElements = new Map();
         const mouseElements = new Map();
@@ -398,104 +396,130 @@ export class OverlayVisualiser {
             arr.push(el);
         };
 
-        const allRows = layoutDef.map(r => ({ isMouse: false, items: r }));
-        if (mouseLayoutDef?.length) {
-            for (const mouseRow of mouseLayoutDef) allRows.push({ isMouse: true, items: mouseRow });
-        }
+        const U = 50;
+        let maxRight = 0, maxBottom = 0;
+        let zIdx = 0;
 
-        const kbFrag = document.createDocumentFragment();
-        const msFrag = document.createDocumentFragment();
+        for (const item of defs) {
+            if (item.type === "$") continue;
+            const zi = ++zIdx;
 
-        for (const row of allRows) {
-            const rowEl = document.createElement("div");
-            rowEl.className = row.isMouse ? "mouse-row" : "key-row";
-            rowEl.style.position = "relative";
+            const widthPx = item.w * U;
+            const heightPx = item.h * U;
+            const { x, y } = item;
+            maxRight = Math.max(maxRight, x + widthPx);
+            maxBottom = Math.max(maxBottom, y + heightPx);
 
-            for (const item of row.items) {
-                switch (item.type) {
-                    case "gp_joystick":
-                        rowEl.appendChild(this._buildJoystickElement(item));
-                        break;
-                    case "mouse_pad":
-                        rowEl.appendChild(this._buildMousePadElement(item));
-                        break;
-                    case "scroller": {
-                        const disp = this.createScrollDisplay(item.labels, item.class);
-                        rowEl.appendChild(disp.el);
-                        scrollDisplays.push(disp.el);
-                        scrollArrows.push(disp.arrow);
-                        scrollCounts.push(disp.count);
-                        register(mouseElements, "mouse_middle", disp.el);
-                        item.keys?.forEach((keyName, idx) => {
-                            if (keyName === "scroller") return;
-                            const map = keyName.startsWith("mouse_") ? mouseElements : keyElements;
-                            register(map, keyName, disp.el);
-                            if (!keyName.startsWith("mouse_") && !disp.el.dataset.key)
-                                disp.el.dataset.key = keyName;
-                            this.scrollerAliases.set(keyName, idx === 1 ? -1 : 1);
-                        });
-                        break;
+            const baseItemType = item.type.split("|")[0];
+            switch (baseItemType) {
+                case "mouse_pad": {
+                    const el = this._buildMousePadElementAbs(item, x, y, widthPx, heightPx);
+                    container.appendChild(el);
+                    break;
+                }
+                case "gp_joystick_ls":
+                case "gp_joystick_rs": {
+                    const stickId = item.type === "gp_joystick_ls" ? "gp_ls" : "gp_rs";
+                    const el = this._buildJoystickElementAbs(item, stickId, x, y, widthPx, heightPx);
+                    container.appendChild(el);
+                    register(gamepadElements, stickId, el);
+                    break;
+                }
+                case "scroller": {
+                    const labels = item.labels ?? ["M3", "▲", "▼"];
+                    const disp = this.createScrollDisplay(labels, "");
+                    Object.assign(disp.el.style, { position: "absolute", left: `${x}px`, top: `${y}px` });
+                    disp.el.style.setProperty("--key-width", `${widthPx}px`);
+                    disp.el.style.setProperty("--key-height-modifier", String(item.h));
+                    container.appendChild(disp.el);
+                    scrollDisplays.push(disp.el);
+                    scrollArrows.push(disp.arrow);
+                    scrollCounts.push(disp.count);
+                    register(mouseElements, "mouse_middle", disp.el);
+                    const extraScrollKeys = item.type.split("|").filter(k => k !== "scroller");
+                    extraScrollKeys.forEach((keyName, idx) => {
+                        const map = keyName.startsWith("mouse_") ? mouseElements : keyElements;
+                        register(map, keyName, disp.el);
+                        if (!keyName.startsWith("mouse_") && !disp.el.dataset.key)
+                            disp.el.dataset.key = keyName;
+                        this.scrollerAliases.set(keyName, idx === 0 ? -1 : 1);
+                    });
+                    break;
+                }
+                case "scroll_updown": {
+                    const labels = item.labels ?? ["▲", "▼"];
+                    const disp = this.createScrollDisplay(["", labels[0], labels[1]], "");
+                    Object.assign(disp.el.style, { position: "absolute", left: `${x}px`, top: `${y}px` });
+                    disp.el.style.setProperty("--key-width", `${widthPx}px`);
+                    disp.el.style.setProperty("--key-height-modifier", String(item.h));
+                    container.appendChild(disp.el);
+                    scrollDisplays.push(disp.el);
+                    scrollArrows.push(disp.arrow);
+                    scrollCounts.push(disp.count);
+                    break;
+                }
+                case "scroll_up": {
+                    const label = item.label ?? "▲";
+                    const disp = this.createScrollDisplay([label, label, ""], "");
+                    disp.el.dataset.scrollDir = "up";
+                    Object.assign(disp.el.style, { position: "absolute", left: `${x}px`, top: `${y}px` });
+                    disp.el.style.setProperty("--key-width", `${widthPx}px`);
+                    disp.el.style.setProperty("--key-height-modifier", String(item.h));
+                    container.appendChild(disp.el);
+                    scrollDisplays.push(disp.el);
+                    scrollArrows.push(disp.arrow);
+                    scrollCounts.push(disp.count);
+                    break;
+                }
+                case "scroll_down": {
+                    const label = item.label ?? "▼";
+                    const disp = this.createScrollDisplay([label, "", label], "");
+                    disp.el.dataset.scrollDir = "down";
+                    Object.assign(disp.el.style, { position: "absolute", left: `${x}px`, top: `${y}px` });
+                    disp.el.style.setProperty("--key-width", `${widthPx}px`);
+                    disp.el.style.setProperty("--key-height-modifier", String(item.h));
+                    container.appendChild(disp.el);
+                    scrollDisplays.push(disp.el);
+                    scrollArrows.push(disp.arrow);
+                    scrollCounts.push(disp.count);
+                    break;
+                }
+                case "mouse_side": {
+                    const labels = item.labels ?? ["M5", "M4"];
+                    const side = this.createSideMouseButton(labels[0], labels[1], "");
+                    Object.assign(side.el.style, { position: "absolute", left: `${x}px`, top: `${y}px` });
+                    side.el.style.setProperty("--key-width", `${widthPx}px`);
+                    side.el.style.setProperty("--key-height-modifier", String(item.h));
+                    container.appendChild(side.el);
+                    register(mouseElements, "mouse5", side.m5El);
+                    register(mouseElements, "mouse4", side.m4El);
+                    break;
+                }
+                default: {
+                    const keys = item.keys ?? (item.type.includes("|") ? item.type.split("|") : [item.type]);
+                    const el = this.createKeyOrButtonElement({ ...item, key: keys[0], class: "" });
+                    el.style.position = "absolute";
+                    el.style.left = `${x}px`;
+                    el.style.top = `${y}px`;
+                    el.style.setProperty("--key-width", `${widthPx}px`);
+                    el.style.setProperty("--key-height-modifier", String(item.h));
+                    container.appendChild(el);
+
+                    for (const keyName of keys) {
+                        let map;
+                        if (keyName.startsWith("mouse_")) map = mouseElements;
+                        else if (keyName.startsWith("gp_")) map = gamepadElements;
+                        else map = keyElements;
+                        register(map, keyName, el);
                     }
-                    case "scroll_updown": {
-                        const disp = this.createScrollDisplay(["", item.labels[0], item.labels[1]], item.class);
-                        rowEl.appendChild(disp.el);
-                        scrollDisplays.push(disp.el);
-                        scrollArrows.push(disp.arrow);
-                        scrollCounts.push(disp.count);
-                        break;
-                    }
-                    case "scroll_up": {
-                        const disp = this.createScrollDisplay([item.label, item.label, ""], item.class);
-                        disp.el.dataset.scrollDir = "up";
-                        rowEl.appendChild(disp.el);
-                        scrollDisplays.push(disp.el);
-                        scrollArrows.push(disp.arrow);
-                        scrollCounts.push(disp.count);
-                        break;
-                    }
-                    case "scroll_down": {
-                        const disp = this.createScrollDisplay([item.label, "", item.label], item.class);
-                        disp.el.dataset.scrollDir = "down";
-                        rowEl.appendChild(disp.el);
-                        scrollDisplays.push(disp.el);
-                        scrollArrows.push(disp.arrow);
-                        scrollCounts.push(disp.count);
-                        break;
-                    }
-                    case "mouse_side": {
-                        const side = this.createSideMouseButton(item.labels[0], item.labels[1], item.class);
-                        rowEl.appendChild(side.el);
-                        register(mouseElements, "mouse5", side.m5El);
-                        register(mouseElements, "mouse4", side.m4El);
-                        break;
-                    }
-                    default: {
-                        const el = this.createKeyOrButtonElement(item);
-                        rowEl.appendChild(el);
-                        if (!item.class || (item.class !== "invisible" && item.class !== "dummy")) {
-                            let map;
-                            if (item.type === "mouse") map = mouseElements;
-                            else if ((item.keys || [item.key]).some(k => k.startsWith("gp_"))) map = gamepadElements;
-                            else map = keyElements;
-                            for (const keyName of (item.keys || [item.key])) register(map, keyName, el);
-                        }
-                    }
+                    break;
                 }
             }
-
-            const isPadOnly = row.items.every(i => i.type === "mouse_pad" || i.type === "gp_joystick");
-            if (row.isMouse && !isPadOnly) {
-                const section = document.createElement("div");
-                section.className = "mouse-section";
-                section.appendChild(rowEl);
-                msFrag.appendChild(section);
-            } else {
-                kbFrag.appendChild(rowEl);
-            }
+            container.lastElementChild.style.zIndex = String(zi);
         }
 
-        keyboardContainer.appendChild(kbFrag);
-        mouseContainer.appendChild(msFrag);
+        container.style.minWidth = `${maxRight}px`;
+        container.style.minHeight = `${maxBottom}px`;
 
         return {
             keyElements, mouseElements, gamepadElements,
@@ -508,20 +532,89 @@ export class OverlayVisualiser {
         };
     }
 
+    _buildMousePadElementAbs(item, x, y, widthPx, heightPx) {
+        const heightMod = (heightPx / 50).toFixed(4);
+
+        const wrap = document.createElement("div");
+        wrap.className = "mousepad-wrap key";
+        wrap.style.cssText = `position:absolute;left:${x}px;top:${y}px;width:${widthPx}px;height:${heightPx}px;overflow:hidden;pointer-events:none;z-index:50;box-sizing:border-box;`;
+        wrap.style.setProperty("--key-width", `${widthPx}px`);
+        wrap.style.setProperty("--key-height-modifier", heightMod);
+
+        const canvas = document.createElement("canvas");
+        canvas.className = "mousepad-canvas";
+        canvas.id = "mouse_pad";
+        canvas.style.cssText = "display:block;position:absolute;inset:0;width:100%;height:100%;pointer-events:none;";
+        wrap.appendChild(canvas);
+
+        this.mousePadCanvas = canvas;
+        this.mousePadCtx = canvas.getContext("2d");
+        this.mousePadTrail = [];
+        this.mousePadCursorX = null;
+        this.mousePadCursorY = null;
+
+        this._mousePadResizeObserver?.disconnect();
+        this._mousePadResizeObserver = new ResizeObserver(() => this._resizeMousePad());
+        this._mousePadResizeObserver.observe(wrap);
+
+        return wrap;
+    }
+
+    _buildJoystickElementAbs(item, stickId, x, y, widthPx, heightPx) {
+        const heightMod = (heightPx / 50).toFixed(4);
+
+        const wrap = document.createElement("div");
+        wrap.className = "joystick-wrap";
+        wrap.style.cssText = `position:absolute;left:${x}px;top:${y}px;width:${widthPx}px;height:${heightPx}px;overflow:visible;pointer-events:none;z-index:50;`;
+        wrap.style.setProperty("--key-width", `${widthPx}px`);
+        wrap.style.setProperty("--key-height-modifier", heightMod);
+
+        const canvas = document.createElement("canvas");
+        canvas.className = "joystick-canvas";
+        canvas.dataset.stickId = stickId;
+        canvas.style.cssText = "display:block;position:absolute;pointer-events:none;";
+        wrap.appendChild(canvas);
+
+        const state = {
+            canvas, ctx: canvas.getContext("2d"),
+            posX: 0.5, posY: 0.5,
+            W: widthPx, H: heightPx,
+            rafId: null,
+        };
+        this._joystickCanvases[stickId] = state;
+        const loopFn = this._joystickRafLoop.bind(this, stickId);
+        this._joystickRafLoops[stickId] = loopFn;
+
+        const ro = new ResizeObserver(() => this._resizeJoystick(stickId));
+        ro.observe(wrap);
+
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+            this._resizeJoystick(stickId);
+            if (typeof window.setDynamicScale === "function") window.setDynamicScale();
+        }));
+
+        return wrap;
+    }
+
     rebuildInterface(settings) {
         const isOverlay = document.getElementById("overlay").classList.contains("show");
         const previewKeys = document.getElementById(isOverlay ? "keyboard-target" : "preview-keyboard");
         const previewMouse = document.getElementById(isOverlay ? "mouse-target" : "preview-mouse");
 
-        this.previewElements = this.buildInterface(
-            previewKeys, previewMouse,
-            this.layoutParser.getKeyboardLayoutDef(settings),
-            this.layoutParser.getMouseLayoutDef(settings)
-        );
-
-        this.restoreActiveStates();
-        this.adjustScrollDisplays();
-        this.adjustKeyFontSizes(parseFloat(this.outlineScaleUnpressed) || 0);
+        if (settings.keyLayout && this.keyLayoutParser) {
+            let tuples = this.keyLayoutParser.decompressTuples(settings.keyLayout);
+            if (!tuples) { try { tuples = JSON.parse(settings.keyLayout); } catch { tuples = null; } }
+            if (tuples) {
+                const defs = this.keyLayoutParser.parseAll(tuples);
+                if (previewMouse) { previewMouse.innerHTML = ""; previewMouse.style.display = "none"; }
+                if (previewKeys) previewKeys.style.display = "block";
+                this.previewElements = this.buildFromKeyLayout(previewKeys, defs);
+                this.restoreActiveStates();
+                this.adjustScrollDisplays();
+                this.adjustKeyFontSizes(parseFloat(this.outlineScaleUnpressed) || 0);
+                return;
+            }
+        }
     }
 
     restoreActiveStates() {
@@ -537,7 +630,6 @@ export class OverlayVisualiser {
             const elements = elementMap.get(name);
             if (!elements?.length) continue;
             for (const el of elements) {
-                el.style.zIndex = (++this.Z_INDEX_COUNTER).toString();
                 this.updateElementState(el, name, true, currentActive);
             }
         }
@@ -591,7 +683,6 @@ export class OverlayVisualiser {
             arrow.style.transform = `scale(${scale})`;
 
             if (!display.classList.contains("active")) {
-                display.style.zIndex = (++this.Z_INDEX_COUNTER).toString();
                 if (this.analogMode) {
                     display.style.setProperty("transition", `color ${animDur} cubic-bezier(0.4,0,0.2,1), background ${animDur} cubic-bezier(0.4,0,0.2,1), border-color ${animDur} cubic-bezier(0.4,0,0.2,1), box-shadow ${animDur} cubic-bezier(0.4,0,0.2,1), transform 0.05s cubic-bezier(0.4,0,0.2,1)`, "important");
                     const scaleY = this.pressScaleValue || 1.05;
@@ -632,6 +723,10 @@ export class OverlayVisualiser {
     }
 
     setAnalogDepthTarget(keyName, depth, source) {
+        if (!this.analogMode && this._cachedOpts) {
+            this.analogMode = true;
+            this.applyStyles(this._cachedOpts);
+        }
         this.analogTargetDepths[keyName] = depth;
         if (this.analogCurrentDepths[keyName] === undefined) this.analogCurrentDepths[keyName] = 0;
         if (!this.analogRafId) {
@@ -668,9 +763,6 @@ export class OverlayVisualiser {
             if (current === 0 && target === 0) {
                 delete this.analogTargetDepths[keyName];
                 delete this.analogCurrentDepths[keyName];
-                const els = this.previewElements?.keyElements.get(keyName);
-                if (els) for (const el of els)
-                    document.getElementById(`analog-depth-${keyName}-${el.dataset.key || ""}`)?.remove();
             }
         }
 
@@ -701,39 +793,25 @@ export class OverlayVisualiser {
             const scaleY = 1 + (maxScaleY - 1) * effectiveDepth;
             el.style.setProperty("transform", `scale(${scaleX}, ${scaleY})`, "important");
 
-            const isDigitallyPressed = this.activeKeys.has(keyName) || this.activeGamepadButtons?.has(keyName);
+            const radius = this.borderRadius + (this.pressedRadius - this.borderRadius) * effectiveDepth;
+            el.style.setProperty("border-radius", `${radius.toFixed(2)}px`, "important");
+
             const fillHeight = effectiveDepth * 100;
-            const borderWidth = isDigitallyPressed
-                ? unpressedWidth + (pressedWidth - unpressedWidth) * Math.min(1, depth * 3)
-                : unpressedWidth;
-            const outerGlow = isDigitallyPressed && effectiveDepth > 0 ? `0 2px ${glowRadius} ${this.activeColor}` : "none";
+            const borderWidth = unpressedWidth + (pressedWidth - unpressedWidth) * effectiveDepth;
 
             el.style.setProperty("border-width", `${borderWidth}px`, "important");
 
-            if (el.classList.contains("scroll-display")) {
-                if (effectiveDepth > 0) {
-                    const pct = fillHeight.toFixed(1);
-                    el.style.setProperty("background-image",
-                        `linear-gradient(to top, ${this.activeBgColor} ${pct}%, transparent ${pct}%)`,
-                        "important");
-                } else {
-                    el.style.removeProperty("background-image");
-                }
+            if (effectiveDepth > 0) {
+                const pct = fillHeight.toFixed(1);
+                el.style.setProperty("background-image",
+                    `linear-gradient(to top, ${this.activeBgColor} ${pct}%, transparent ${pct}%)`,
+                    "important");
             } else {
-                const uniqueId = `${keyName}-${el.dataset.key || ""}`;
-                let styleEl = document.getElementById(`analog-depth-${uniqueId}`);
-                if (!styleEl) {
-                    styleEl = document.createElement("style");
-                    styleEl.id = `analog-depth-${uniqueId}`;
-                    document.head.appendChild(styleEl);
-                }
-                const dataKey = el.dataset.key || keyName;
-                styleEl.textContent = `
-                    [data-key="${dataKey}"]::after { height: ${fillHeight}% !important; }
-                    [data-key="${dataKey}"].analog-key {
-                        border-color: ${isDigitallyPressed ? this.activeColor : "inherit"} !important;
-                        box-shadow: ${outerGlow} !important;
-                    }`;
+                el.style.removeProperty("background-image");
+            }
+            if (!el.classList.contains("scroll-display")) {
+                el.style.removeProperty("border-color");
+                el.style.removeProperty("box-shadow");
             }
 
             const primary = el.querySelector(".key-label-primary");
@@ -886,9 +964,9 @@ export class OverlayVisualiser {
             return;
         }
 
-        const REF_W = 300, REF_H = 200;
-        const scaleX = W / REF_W;
-        const scaleY = H / REF_H;
+        const scale = Math.sqrt((W * H) / (300 * 200));
+        const scaleX = scale;
+        const scaleY = scale;
         const BASE_SENSITIVITY = 0.05 * this.MOUSEPAD_SENSITIVITY;
         const now = performance.now();
         const m1Active = this.MOUSEPAD_M1_HIGHLIGHT && this.activeMouseButtons.has("mouse_left");

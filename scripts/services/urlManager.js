@@ -1,6 +1,4 @@
 //guh
-import { DEFAULT_LAYOUT_STRINGS } from "../consts.js";
-
 export class UrlManager {
     constructor(utils) {
         this.urlParams = new URLSearchParams(window.location.search);
@@ -63,14 +61,13 @@ export class UrlManager {
             }
         });
 
-        addParam("glow", settings.glowradius);
-        addParam("radius", settings.borderradius);
-        addParam("pressscale", settings.pressscale);
-        addParam("speed", settings.animationspeed);
-        addParam("scale", settings.scale);
-        addParam("opacity", settings.opacity);
-
-        addParam("gapmodifier", settings.gapmodifier);
+        if (settings.glowradius && settings.glowradius !== "24") addParam("glow", settings.glowradius);
+        if (settings.borderradius && settings.borderradius !== "8") addParam("radius", settings.borderradius);
+        if (settings.pressedradius && settings.pressedradius !== (settings.borderradius || "8")) addParam("pressedradius", settings.pressedradius);
+        if (settings.pressscale && settings.pressscale !== "105") addParam("pressscale", settings.pressscale);
+        if (settings.animationspeed && settings.animationspeed !== "100") addParam("speed", settings.animationspeed);
+        if (settings.scale && settings.scale !== "100") addParam("scale", settings.scale);
+        if (settings.opacity && settings.opacity !== "100") addParam("opacity", settings.opacity);
 
         if (settings.keylegendmode && settings.keylegendmode !== "fading") {
             addParam("keylegendmode", settings.keylegendmode);
@@ -79,8 +76,8 @@ export class UrlManager {
             params.push("forcedisableanalog=1");
         }
 
-        addParam("outlinescalepressed", settings.outlinescalepressed);
-        addParam("outlinescaleunpressed", settings.outlinescaleunpressed);
+        if (settings.outlinescalepressed && settings.outlinescalepressed !== "2") addParam("outlinescalepressed", settings.outlinescalepressed);
+        if (settings.outlinescaleunpressed && settings.outlinescaleunpressed !== "2") addParam("outlinescaleunpressed", settings.outlinescaleunpressed);
 
         if (settings.fontfamily && settings.fontfamily.trim() !== "") {
             addParam("fontfamily", settings.fontfamily.replace(/ /g, "+"));
@@ -92,7 +89,8 @@ export class UrlManager {
 
         if (settings.hidemouse === true || settings.hidemouse === "true" || settings.hidemouse === "1") {
             params.push("hidemouse=1");
-        } if (settings.hidescrollcombo === true || settings.hidescrollcombo === "true" || settings.hidescrollcombo === "1") {
+        }
+        if (settings.hidescrollcombo === true || settings.hidescrollcombo === "true" || settings.hidescrollcombo === "1") {
             params.push("hidescrollcombo=1");
         }
 
@@ -130,24 +128,15 @@ export class UrlManager {
             params.push("resetmousedistanceafterfade=1");
         }
 
-        this.addCustomLayoutParams(params, settings);
+        if (settings.keyLayout) {
+            params.push(`keyLayout=${settings.keyLayout}`);
+        }
 
         return params.join("&");
     }
 
-    addCustomLayoutParams(params, settings) {
-        const addParam = (key, value) => {
-            if (value !== undefined && value !== null && value !== "") {
-                params.push(`${key}=${value.replace(/, /g, ",")}`);
-            }
-        };
-
-        const layoutRows = [
-            "customLayoutRow1", "customLayoutRow2", "customLayoutRow3",
-            "customLayoutRow4", "customLayoutRow5", "customLayoutMouse"
-        ];
-
-        layoutRows.forEach(row => addParam(row, settings[row]));
+    getKeyLayoutParam() {
+        return this.urlParams.get("keyLayout") || null;
     }
 
     getOverlaySettings() {
@@ -158,6 +147,7 @@ export class UrlManager {
 
             if (decompressed) {
                 const decompressedParams = new URLSearchParams(decompressed);
+                const rad = decompressedParams.get("radius");
                 return {
                     activecolor: this.utils.normalizeColorValue(decompressedParams.get("activecolor")) || "#8b5cf6",
                     inactivecolor: this.utils.normalizeColorValue(decompressedParams.get("inactivecolor")) || "#808080",
@@ -166,7 +156,8 @@ export class UrlManager {
                     outlinecolor: this.utils.normalizeColorValue(decompressedParams.get("outlinecolor")) || "#4f4f4f",
                     fontcolor: this.utils.normalizeColorValue(decompressedParams.get("fontcolor")) || "#ffffff",
                     glowradius: decompressedParams.get("glow") || "24",
-                    borderradius: decompressedParams.get("radius") || "8",
+                    borderradius: rad || "8",
+                    pressedradius: decompressedParams.get("pressedradius") || rad || "8",
                     pressscale: decompressedParams.get("pressscale") || "105",
                     animationspeed: decompressedParams.get("speed") || "100",
                     scale: decompressedParams.get("scale") || "100",
@@ -186,25 +177,24 @@ export class UrlManager {
                     showmousedistance: decompressedParams.get("showmousedistance") === "1",
                     mousedistancedpi: decompressedParams.get("mousedistancedpi") || "400",
                     resetmousedistanceafterfade: decompressedParams.get("resetmousedistanceafterfade") === "1",
-                    customLayoutRow1: decompressedParams.has("customLayoutRow1") ? decompressedParams.get("customLayoutRow1") : DEFAULT_LAYOUT_STRINGS.row1,
-                    customLayoutRow2: decompressedParams.has("customLayoutRow2") ? decompressedParams.get("customLayoutRow2") : DEFAULT_LAYOUT_STRINGS.row2,
-                    customLayoutRow3: decompressedParams.has("customLayoutRow3") ? decompressedParams.get("customLayoutRow3") : DEFAULT_LAYOUT_STRINGS.row3,
-                    customLayoutRow4: decompressedParams.has("customLayoutRow4") ? decompressedParams.get("customLayoutRow4") : DEFAULT_LAYOUT_STRINGS.row4,
-                    customLayoutRow5: decompressedParams.has("customLayoutRow5") ? decompressedParams.get("customLayoutRow5") : DEFAULT_LAYOUT_STRINGS.row5,
-                    customLayoutMouse: decompressedParams.has("customLayoutMouse") ? decompressedParams.get("customLayoutMouse") : DEFAULT_LAYOUT_STRINGS.mouse,
-
                     gapmodifier: decompressedParams.get("gapmodifier") || "100",
                     outlinescalepressed: decompressedParams.get("outlinescalepressed") || "2",
                     outlinescaleunpressed: decompressedParams.get("outlinescaleunpressed") || "2",
-
                     keylegendmode: decompressedParams.get("keylegendmode") || "fading",
                     forcedisableanalog: decompressedParams.get("forcedisableanalog") === "1",
-
                     wsauth: decompressedParams.get("wsauth") || "",
+                    keyLayout: decompressedParams.get("keyLayout") || this.urlParams.get("keyLayout") || null,
+                    customLayoutRow1: decompressedParams.get("customLayoutRow1") || null,
+                    customLayoutRow2: decompressedParams.get("customLayoutRow2") || null,
+                    customLayoutRow3: decompressedParams.get("customLayoutRow3") || null,
+                    customLayoutRow4: decompressedParams.get("customLayoutRow4") || null,
+                    customLayoutRow5: decompressedParams.get("customLayoutRow5") || null,
+                    customLayoutMouse: decompressedParams.get("customLayoutMouse") || null,
                 };
             }
         }
 
+        const rad = params.get("radius");
         return {
             activecolor: this.utils.normalizeColorValue(params.get("activecolor")) || "#8b5cf6",
             inactivecolor: this.utils.normalizeColorValue(params.get("inactivecolor")) || "#808080",
@@ -213,7 +203,8 @@ export class UrlManager {
             outlinecolor: this.utils.normalizeColorValue(params.get("outlinecolor")) || "#4f4f4f",
             fontcolor: this.utils.normalizeColorValue(params.get("fontcolor")) || "#ffffff",
             glowradius: params.get("glow") || "24",
-            borderradius: params.get("radius") || "8",
+            borderradius: rad || "8",
+            pressedradius: params.get("pressedradius") || rad || "8",
             pressscale: params.get("pressscale") || "105",
             animationspeed: params.get("speed") || "100",
             scale: params.get("scale") || "100",
@@ -233,22 +224,19 @@ export class UrlManager {
             showmousedistance: params.get("showmousedistance") === "1",
             mousedistancedpi: params.get("mousedistancedpi") || "400",
             resetmousedistanceafterfade: params.get("resetmousedistanceafterfade") === "1",
-            customLayoutRow1: params.has("customLayoutRow1") ? params.get("customLayoutRow1") : DEFAULT_LAYOUT_STRINGS.row1,
-            customLayoutRow2: params.has("customLayoutRow2") ? params.get("customLayoutRow2") : DEFAULT_LAYOUT_STRINGS.row2,
-            customLayoutRow3: params.has("customLayoutRow3") ? params.get("customLayoutRow3") : DEFAULT_LAYOUT_STRINGS.row3,
-            customLayoutRow4: params.has("customLayoutRow4") ? params.get("customLayoutRow4") : DEFAULT_LAYOUT_STRINGS.row4,
-            customLayoutRow5: params.has("customLayoutRow5") ? params.get("customLayoutRow5") : DEFAULT_LAYOUT_STRINGS.row5,
-            customLayoutMouse: params.has("customLayoutMouse") ? params.get("customLayoutMouse") : DEFAULT_LAYOUT_STRINGS.mouse,
-
             gapmodifier: params.get("gapmodifier") || "100",
-
             outlinescalepressed: params.get("outlinescalepressed") || "2",
             outlinescaleunpressed: params.get("outlinescaleunpressed") || "2",
-
             keylegendmode: params.get("keylegendmode") || "fading",
             forcedisableanalog: params.get("forcedisableanalog") === "1",
-
             wsauth: params.get("wsauth") || "",
+            keyLayout: this.urlParams.get("keyLayout") || null,
+            customLayoutRow1: params.get("customLayoutRow1") || null,
+            customLayoutRow2: params.get("customLayoutRow2") || null,
+            customLayoutRow3: params.get("customLayoutRow3") || null,
+            customLayoutRow4: params.get("customLayoutRow4") || null,
+            customLayoutRow5: params.get("customLayoutRow5") || null,
+            customLayoutMouse: params.get("customLayoutMouse") || null,
         };
     }
 }
