@@ -155,12 +155,16 @@ export class ConfiguratorMode {
         this.keyLayoutDefs = [];
         this._klDragState = null;
         this._klGridPx = 6.25;
+        this._localTextureBlobUrl = null;
+        this._localTextureServerUrl = null;
+        this._localTextureKind = null;
 
         document.getElementById("configurator").style.display = "flex";
         document.getElementById("overlay").classList.remove("show");
 
         this.setupBackgroundVideo();
         this.setupCheatSheetToggle();
+        this.setupBackgroundTexturePicker();
 
         setTimeout(() => COLOR_PICKERS.forEach(cp => this.initPickrColorInput(cp.id, cp.defaultColor)), 25);
 
@@ -208,6 +212,9 @@ export class ConfiguratorMode {
             mousepadtexture: "",
             mousepadtexturezoom: "1",
             mousepadtextureopacity: "1",
+            mousepadtexturefit: "tile",
+            mousepadtextureposx: "50",
+            mousepadtextureposy: "50",
             showmousedistance: true,
             mousedistancedpi: "400",
             resetmousedistanceafterfade: false,
@@ -257,9 +264,13 @@ export class ConfiguratorMode {
             mousetrailmode: val("mousetrailmode") || "wrap",
             mousetraillength: val("mousetraillength") || "150",
             mousetrailm1highlight: chk("mousetrailm1highlight"),
-            mousepadtexture: val("mousepadtexture"),
+            mousepadtexture: this._localTextureServerUrl || this._localTextureBlobUrl || val("mousepadtexture"),
+            mousepadtexturekind: (this._localTextureServerUrl || this._localTextureBlobUrl) ? this._localTextureKind : "",
             mousepadtexturezoom: val("mousepadtexturezoom") || "1",
             mousepadtextureopacity: val("mousepadtextureopacity") || "1",
+            mousepadtexturefit: val("mousepadtexturefit") || "tile",
+            mousepadtextureposx: val("mousepadtextureposx") || "50",
+            mousepadtextureposy: val("mousepadtextureposy") || "50",
             showmousedistance: chk("showmousedistance"),
             mousedistancedpi: val("mousedistancedpi") || "400",
             resetmousedistanceafterfade: chk("resetmousedistanceafterfade"),
@@ -294,6 +305,9 @@ export class ConfiguratorMode {
         if (id === "mousedistancedpi") {
             label.textContent = input.value + " DPI"; return;
         }
+        if (id === "mousepadtextureposx" || id === "mousepadtextureposy") {
+            label.textContent = input.value + "%"; return;
+        }
 
         let suffix = "", val = input.value;
         if (id.includes("radius")) suffix = "px";
@@ -305,6 +319,7 @@ export class ConfiguratorMode {
 
     applySettings(settings) {
         if (!settings) return;
+        if (this._localTextureBlobUrl) this._clearLocalTexture(false);
 
         const applyValue = (id, value) => {
             const el = document.getElementById(id);
@@ -361,6 +376,9 @@ export class ConfiguratorMode {
         applyValue("mousepadtexture", settings.mousepadtexture ?? "");
         applyValue("mousepadtexturezoom", settings.mousepadtexturezoom ?? "1");
         applyValue("mousepadtextureopacity", settings.mousepadtextureopacity ?? "1");
+        applyValue("mousepadtexturefit", settings.mousepadtexturefit ?? "tile");
+        applyValue("mousepadtextureposx", settings.mousepadtextureposx ?? "50");
+        applyValue("mousepadtextureposy", settings.mousepadtextureposy ?? "50");
         applyValue("showmousedistance", settings.showmousedistance ?? false);
         applyValue("mousedistancedpi", settings.mousedistancedpi ?? "400");
         applyValue("resetmousedistanceafterfade", settings.resetmousedistanceafterfade ?? false);
@@ -392,6 +410,7 @@ export class ConfiguratorMode {
     }
 
     updateGeneratedLink(settings) {
+        settings = this._stripUnshareableTexture(settings);
         const paramsString = this.urlManager.buildURLParams(settings);
         const safeSettings = { ...settings, wsauth: "" };
         const safeParamsString = this.urlManager.buildURLParams(safeSettings);
@@ -636,6 +655,97 @@ export class ConfiguratorMode {
         }
     }
 
+    setupBackgroundTexturePicker() {
+        const fileInput = document.getElementById("mousepadtexturefile");
+        const browseBtn = document.getElementById("mousepadtexturebrowsebtn");
+        const clearBtn = document.getElementById("mousepadtextureclearbtn");
+        const warning = document.getElementById("mousepadtexturelocalwarning");
+        if (!fileInput || !browseBtn) return;
+
+        this._localTextureDefaultWarning = warning?.textContent ?? "";
+
+        browseBtn.addEventListener("click", () => fileInput.click());
+
+        fileInput.addEventListener("change", () => {
+            const file = fileInput.files?.[0];
+            if (file) this._setLocalTexture(file);
+        });
+
+        clearBtn?.addEventListener("click", () => this._clearLocalTexture());
+
+        window.addEventListener("beforeunload", () => {
+            if (this._localTextureBlobUrl) URL.revokeObjectURL(this._localTextureBlobUrl);
+        });
+    }
+
+    async _setLocalTexture(file) {
+        this._clearLocalTexture(false);
+        const gen = (this._localTextureGen = (this._localTextureGen || 0) + 1);
+
+        this._localTextureBlobUrl = URL.createObjectURL(file);
+        this._localTextureKind = file.type.startsWith("video/") ? "video" : "image";
+
+        const urlInput = document.getElementById("mousepadtexture");
+        const clearBtn = document.getElementById("mousepadtextureclearbtn");
+        const warning = document.getElementById("mousepadtexturelocalwarning");
+        if (urlInput) { urlInput.value = file.name; urlInput.disabled = true; }
+        if (clearBtn) clearBtn.style.display = "";
+        if (warning) { warning.style.display = ""; warning.textContent = "⏳ uploading to the local http server for a persistent url..."; }
+
+        this.updateState();
+
+        try {
+            const res = await fetch("/upload", {
+                method: "POST",
+                headers: {
+                    "X-Filename": encodeURIComponent(file.name),
+                    "Content-Type": file.type || "application/octet-stream",
+                },
+                body: file,
+            });
+            if (gen !== this._localTextureGen) return; 
+            if (res.ok) {
+                const { url } = await res.json();
+                this._localTextureServerUrl = new URL(url, window.location.href).href;
+                if (warning) warning.textContent = "✓ hosted by the local http server - this url keeps working elsewhere as long as this pc and the http server stay running.";
+                this.updateState();
+                return;
+            }
+        } catch {  }
+
+        if (gen !== this._localTextureGen) return;
+        if (warning) warning.textContent = this._localTextureDefaultWarning;
+    }
+
+    _clearLocalTexture(triggerUpdate = true) {
+        this._localTextureGen = (this._localTextureGen || 0) + 1;
+        if (this._localTextureBlobUrl) URL.revokeObjectURL(this._localTextureBlobUrl);
+        if (this._localTextureServerUrl) {
+            fetch(this._localTextureServerUrl, { method: "DELETE" }).catch(() => { });
+        }
+        this._localTextureBlobUrl = null;
+        this._localTextureServerUrl = null;
+        this._localTextureKind = null;
+
+        const urlInput = document.getElementById("mousepadtexture");
+        const clearBtn = document.getElementById("mousepadtextureclearbtn");
+        const warning = document.getElementById("mousepadtexturelocalwarning");
+        const fileInput = document.getElementById("mousepadtexturefile");
+        if (urlInput) { urlInput.disabled = false; urlInput.value = ""; }
+        if (clearBtn) clearBtn.style.display = "none";
+        if (warning) { warning.style.display = "none"; warning.textContent = this._localTextureDefaultWarning; }
+        if (fileInput) fileInput.value = "";
+
+        if (triggerUpdate) this.updateState();
+    }
+
+    _stripUnshareableTexture(settings) {
+        if (settings.mousepadtexture && settings.mousepadtexture.startsWith("blob:")) {
+            return { ...settings, mousepadtexture: "", mousepadtexturekind: "" };
+        }
+        return settings;
+    }
+
     setupCheatSheetToggle() {
         for (const details of document.querySelectorAll(".fullscreen-details")) {
             const closeBtn = details.querySelector(".close-btn");
@@ -662,7 +772,7 @@ export class ConfiguratorMode {
     async copyShareLink() {
         const shareBtn = document.getElementById("copysharebtn");
         try {
-            const settings = this.getCurrentSettings();
+            const settings = this._stripUnshareableTexture(this.getCurrentSettings());
             const shareSettings = { ...settings, wsauth: "" };
             const paramsString = this.urlManager.buildURLParams(shareSettings);
             const compressed = this.urlManager.compressSettings(paramsString);

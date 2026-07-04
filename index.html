@@ -486,8 +486,13 @@
                                     <div class="cfg-field" id="mousepadtexture-field" style="flex: 1">
                                         <label class="cfg-label" for="mousepadtexture">background texture url</label>
                                         <input class="cfg-input config-input" id="mousepadtexture" type="text"
-                                            placeholder="https://... direct image link">
+                                            placeholder="https://... direct image or video link">
                                     </div>
+                                    <button class="cfg-btn" id="mousepadtexturebrowsebtn" type="button"
+                                        title="use a local image or video file" style="white-space:nowrap;">browse...</button>
+                                    <button class="cfg-btn" id="mousepadtextureclearbtn" type="button" title="clear local file"
+                                        style="display:none;">✕</button>
+                                    <input type="file" id="mousepadtexturefile" accept="image/*,video/*" style="display:none;">
                                     <div class="cfg-field">
                                         <label class="cfg-label" for="mousepadtexturezoom">scale</label>
                                         <input class="cfg-input config-input" id="mousepadtexturezoom" type="number" min="0.1"
@@ -497,6 +502,36 @@
                                         <label class="cfg-label" for="mousepadtextureopacity">opacity</label>
                                         <input class="cfg-input config-input" id="mousepadtextureopacity" type="number" min="0"
                                             max="1" step="0.05" value="1" style="width:70px;">
+                                    </div>
+                                </div>
+                                <div id="mousepadtexturelocalwarning" class="cfg-auth-warning" style="display:none;">
+                                    ⚠ local file — preview only, won't survive in a copied/shared url. host it online
+                                    for a persistent overlay. large videos can hurt performance; a short, 1080p clip
+                                    works best for a live-wallpaper background.
+                                </div>
+                                <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px;">
+                                    <div class="cfg-field" style="width:110px;">
+                                        <label class="cfg-label" for="mousepadtexturefit">fit</label>
+                                        <select class="cfg-select config-input" id="mousepadtexturefit">
+                                            <option value="tile">tile</option>
+                                            <option value="cover">cover (crop)</option>
+                                        </select>
+                                    </div>
+                                    <div class="cfg-slider-field" style="flex:1;min-width:120px;">
+                                        <div class="cfg-slider-header">
+                                            <label class="cfg-label" for="mousepadtextureposx">position x</label>
+                                            <span class="cfg-slider-val" id="mousepadtextureposxvalue">50%</span>
+                                        </div>
+                                        <input id="mousepadtextureposx" class="cfg-range config-input" type="range" min="0"
+                                            max="100" step="1" value="50">
+                                    </div>
+                                    <div class="cfg-slider-field" style="flex:1;min-width:120px;">
+                                        <div class="cfg-slider-header">
+                                            <label class="cfg-label" for="mousepadtextureposy">position y</label>
+                                            <span class="cfg-slider-val" id="mousepadtextureposyvalue">50%</span>
+                                        </div>
+                                        <input id="mousepadtextureposy" class="cfg-range config-input" type="range" min="0"
+                                            max="100" step="1" value="50">
                                     </div>
                                 </div>
                             </div>

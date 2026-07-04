@@ -121,11 +121,23 @@ export class UrlManager {
         if (settings.mousepadtexture && settings.mousepadtexture.trim() !== "") {
             addParam("mousepadtexture", encodeURIComponent(settings.mousepadtexture.trim()));
         }
+        if (settings.mousepadtexturekind && settings.mousepadtexturekind !== "") {
+            addParam("mousepadtexturekind", settings.mousepadtexturekind);
+        }
         if (settings.mousepadtexturezoom && parseFloat(settings.mousepadtexturezoom) !== 1) {
             addParam("mousepadtexturezoom", settings.mousepadtexturezoom);
         }
         if (settings.mousepadtextureopacity && parseFloat(settings.mousepadtextureopacity) !== 1) {
             addParam("mousepadtextureopacity", settings.mousepadtextureopacity);
+        }
+        if (settings.mousepadtexturefit && settings.mousepadtexturefit !== "tile") {
+            addParam("mousepadtexturefit", settings.mousepadtexturefit);
+        }
+        if (settings.mousepadtextureposx && settings.mousepadtextureposx !== "50") {
+            addParam("mousepadtextureposx", settings.mousepadtextureposx);
+        }
+        if (settings.mousepadtextureposy && settings.mousepadtextureposy !== "50") {
+            addParam("mousepadtextureposy", settings.mousepadtextureposy);
         }
         if (settings.showmousedistance === true || settings.showmousedistance === "true" || settings.showmousedistance === "1") {
             params.push("showmousedistance=1");
@@ -181,8 +193,12 @@ export class UrlManager {
                     mousetraillength: decompressedParams.get("mousetraillength") || "150",
                     mousetrailm1highlight: decompressedParams.get("mousetrailm1highlight") === "1",
                     mousepadtexture: decompressedParams.get("mousepadtexture") ? decodeURIComponent(decompressedParams.get("mousepadtexture")) : "",
+                    mousepadtexturekind: decompressedParams.get("mousepadtexturekind") || "",
                     mousepadtexturezoom: decompressedParams.get("mousepadtexturezoom") || "1",
                     mousepadtextureopacity: decompressedParams.get("mousepadtextureopacity") || "1",
+                    mousepadtexturefit: decompressedParams.get("mousepadtexturefit") || "tile",
+                    mousepadtextureposx: decompressedParams.get("mousepadtextureposx") || "50",
+                    mousepadtextureposy: decompressedParams.get("mousepadtextureposy") || "50",
                     showmousedistance: decompressedParams.get("showmousedistance") === "1",
                     mousedistancedpi: decompressedParams.get("mousedistancedpi") || "400",
                     resetmousedistanceafterfade: decompressedParams.get("resetmousedistanceafterfade") === "1",
@@ -231,8 +247,12 @@ export class UrlManager {
             mousetraillength: params.get("mousetraillength") || "150",
             mousetrailm1highlight: params.get("mousetrailm1highlight") === "1",
             mousepadtexture: params.get("mousepadtexture") ? decodeURIComponent(params.get("mousepadtexture")) : "",
+            mousepadtexturekind: params.get("mousepadtexturekind") || "",
             mousepadtexturezoom: params.get("mousepadtexturezoom") || "1",
             mousepadtextureopacity: params.get("mousepadtextureopacity") || "1",
+            mousepadtexturefit: params.get("mousepadtexturefit") || "tile",
+            mousepadtextureposx: params.get("mousepadtextureposx") || "50",
+            mousepadtextureposy: params.get("mousepadtextureposy") || "50",
             showmousedistance: params.get("showmousedistance") === "1",
             mousedistancedpi: params.get("mousedistancedpi") || "400",
             resetmousedistanceafterfade: params.get("resetmousedistanceafterfade") === "1",

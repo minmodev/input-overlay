@@ -25,6 +25,10 @@ fn stage_web_assets() {
         "cargo:rerun-if-changed={}",
         repo_root.join("scripts").display()
     );
+    println!(
+        "cargo:rerun-if-changed={}",
+        repo_root.join("media/favicon.png").display()
+    );
 
     if staging.exists() {
         std::fs::remove_dir_all(&staging).unwrap();
@@ -34,6 +38,13 @@ fn stage_web_assets() {
     std::fs::copy(repo_root.join("index.html"), staging.join("index.html")).unwrap();
     std::fs::copy(repo_root.join("style.css"), staging.join("style.css")).unwrap();
     copy_dir(&repo_root.join("scripts"), &staging.join("scripts"));
+
+    std::fs::create_dir_all(staging.join("media")).unwrap();
+    std::fs::copy(
+        repo_root.join("media/favicon.png"),
+        staging.join("media/favicon.png"),
+    )
+    .unwrap();
 }
 
 fn copy_dir(src: &Path, dst: &Path) {

@@ -1,7 +1,7 @@
 mod services;
 mod ws_server;
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use tauri::{
@@ -82,8 +82,9 @@ async fn save_config(new_cfg: Config, state: tauri::State<'_, AppState>) -> Resu
     }
 
     if need_http_restart {
+        let data_dir = state.config_path.parent().unwrap_or_else(|| Path::new("."));
         let new_server = if new_http_on {
-            services::http_server::HttpServer::start(&new_http_host, new_http_port)
+            services::http_server::HttpServer::start(&new_http_host, new_http_port, data_dir)
         } else {
             None
         };
@@ -126,8 +127,9 @@ async fn toggle_http(
     port: u16,
     state: tauri::State<'_, AppState>,
 ) -> Result<(), String> {
+    let data_dir = state.config_path.parent().unwrap_or_else(|| Path::new("."));
     let new_server = if enabled {
-        services::http_server::HttpServer::start(&host, port)
+        services::http_server::HttpServer::start(&host, port, data_dir)
     } else {
         None
     };
@@ -437,7 +439,7 @@ pub fn run() {
             };
 
             let http_handle = if http_enabled {
-                services::http_server::HttpServer::start(&http_host, http_port)
+                services::http_server::HttpServer::start(&http_host, http_port, &data_dir)
             } else {
                 None
             };
